@@ -38,3 +38,31 @@
 - Clarified draft input/output examples for the project.  
 
 ---
+
+**Type:** Tutor Meeting  
+**Time:** 3:40 PM   
+**Location:** In-person (Tutorial)  
+**Attendees:** Project Team, Tutor  
+
+#### Key Points
+- Reviewed project approach (data pipeline, datasets research, ...).  
+- Clarified requirements for the presentation.  
+
+---
+
+### Team Meeting 
+**Type:** Team Meeting  
+**Time:** 3:00 PM (Tutorial Class)  
+**Location:** In-person (Tutorial)  
+**Attendees:** Project Team  
+
+#### Key Points
+- Finalized project scope.  
+- Allocated work for the presentation:  
+  - **Ulli:** Introduction (based on marking criteria; explain importance and real-life applications).  
+  - **Alice, Benjamin, Raymond:** Scope.  
+  - **Elwood, Tommy:** Timeline.  
+  - **Theo:** Role allocation & expected input/outputs.  
+- Slides to be completed by **Saturday**.  
+- Mock presentation scheduled for **Monday, 9:00 PM**.  
+
