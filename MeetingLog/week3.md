@@ -1,8 +1,9 @@
 # PROJECT MEETING LOG - WEEK 3
 
 ## Monday, 18 August 2025
+**Type**: Team Meeting  
 **Time:** 9:00 PM  
-**Channel**: Online
+**Channel**: Online  
 **Attendees:** Project Team  
 
 ### Discussion Points
@@ -27,8 +28,9 @@
 ---
 
 ## Wednesday, 20 August 2025
-**Time:** 2:00 PM (Client Call) 
-**Channel**: Online (Zoom) 
+**Type**: Client Meeting  
+**Time:** 2:00 PM   
+**Channel**: Online (Zoom)   
 **Attendees:** Project Team, Client  
 
 ### Discussion Points

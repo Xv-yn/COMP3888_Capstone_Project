@@ -1,10 +1,10 @@
 # PROJECT MEETING LOG - WEEK 2
 
 ## Monday, 11 August 2025 
-**Time:** 9:00 PM 
-**Type**: Team Meeting
-**Location**: Online (Discord)
-**Attendees:** Project Team  
+**Time:** 9:00 PM  
+**Type**: Team Meeting   
+**Location**: Online (Discord)  
+**Attendees:** Project Team    
 
 ### Discussion Points
 - Clarified outstanding questions regarding the project.  
@@ -12,9 +12,9 @@
 - Identified and collected potential datasets.  
 
 ## Wednesday, 13 August 2025 
-**Time:** 2:00 PM 
-**Type**: Client Meeting
-**Channel**: Online (Zoom)
+**Time:** 2:00 PM  
+**Type**: Client Meeting  
+**Channel**: Online (Zoom)   
 **Attendees:** Project Team, Clients
 
 ### Key Points
