@@ -1,9 +1,24 @@
+# -*- coding: utf-8 -*-
 """
-python tools/top_down_video_det.py -n yolox-s --path ./demo/zebra.mp4 --save_result --device gpu
+Minimal, CPU-only, image-only pipeline:
+  detector (YOLOX) -> pose (MMPose, optional draw) -> action (TSSTG)
+Usage:
+  python tools/top_down_video_det.py path/to/image.png [--no-skeleton]
+
+Always overlays:
+  - animal label + score (from YOLOX)
+  - action label + score (from TSSTG)
+Skeleton overlay is ON by default; pass --no-skeleton to hide.
+
+Assumptions:
+  - YOLOX model is COCO-trained (yolox-s by default).
+  - ActionsEstLoader.py lives at repo root.
+  - Pose config/ckpt are AP-10K HRNet-W32.
 """
 
 import argparse
 import os
+import sys
 import time
 import warnings
 
@@ -11,33 +26,48 @@ import cv2
 import numpy as np
 import torch
 from loguru import logger
-from torch import cat, float32, tensor
 
-from ActionsEstLoader import TSSTG
-from mmpose.apis import (
-    inference_top_down_pose_model,
-    init_pose_model,
-    process_mmdet_results,
-    vis_pose_result,
-)
-from mmpose.datasets import DatasetInfo
-from Track.Tracker import Detection, Tracker
-from yolox.data.data_augment import ValTransform
-from yolox.data.datasets import COCO_CLASSES, VOC_CLASSES  # ATTRIBUTE
-from yolox.exp import get_exp
-from yolox.utils import fuse_model, get_model_info, postprocess, vis
+# --- Make repo root importable so ActionsEstLoader.py at root can be found ---
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from ActionsEstLoader import TSSTG  # noqa: E402
+from mmpose.apis import inference_top_down_pose_model  # noqa: E402
+from mmpose.apis import init_pose_model, vis_pose_result
+from mmpose.datasets import DatasetInfo  # noqa: E402
+from yolox.data.data_augment import ValTransform  # noqa: E402
+from yolox.data.datasets import COCO_CLASSES, VOC_CLASSES  # noqa: E402
+from yolox.exp import get_exp  # noqa: E402
+from yolox.utils import fuse_model, get_model_info, postprocess  # noqa: E402
+
+# =========================
+# Global constants (edit me)
+# =========================
+
+# YOLOX experiment/name and checkpoint (COCO, yolox-s by default)
+MODEL_NAME = "yolox-s"
+YOLOX_CKPT = "./target_detetion.pth"  # your detector checkpoint
+
+# Pose (AP-10K HRNet-W32)
+POSE_CONFIG = "./pose/hrnet_w32_ap10k_256_256.py"
+POSE_CKPT = "./hrnet_w32_ap10k_256x256-18aac840_20211029.pth"
+
+# Action model (TSSTG)
+ACTION_CKPT = "ckpt/tsstg-model.pth"  # keep relative to project root
+
+# Output directory (images will be saved here)
+OUTPUT_DIR = "./YOLOX_outputs/vis_res"
+
+# Inference/defaults
+CONF_THRES = 0.5
+NMS_THRES = 0.65
+TEST_SIZE = 640
+
+
+# =========================
+# Helpers / pipeline blocks
+# =========================
 
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
-
-
-def is_in_box(xy, box):
-    if box[0] < xy[0] < box[2] and box[1] < xy[1] < box[3]:
-        return True
-    else:
-        return False
 
 
 def kpt2bbox(kpt, ex=20):
@@ -51,132 +81,16 @@ def kpt2bbox(kpt, ex=20):
     )
 
 
-def make_parser():
-    parser = argparse.ArgumentParser("YOLOX Demo!")
-    parser.add_argument(
-        "--demo", default="video", help="demo type, eg. image, video and webcam"
-    )
-    parser.add_argument("-expn", "--experiment-name", type=str, default=None)
-    parser.add_argument("-n", "--name", type=str, default=None, help="model name")
-
-    parser.add_argument(
-        "--path", default="./assets/dog.jpg", help="path to images or video"
-    )
-    parser.add_argument("--camid", type=int, default=0, help="webcam demo camera id")
-    parser.add_argument(
-        "--save_result",
-        action="store_true",
-        help="whether to save the inference result of image/video",
-    )
-
-    # exp file
-    parser.add_argument(
-        "-f",
-        "--exp_file",
-        default=None,
-        type=str,
-        help="pls input your experiment description file",
-    )
-    parser.add_argument(
-        "-c", "--ckpt", default="./ckpt/best_ckpt.pth", type=str, help="ckpt for eval"
-    )
-    parser.add_argument(
-        "-pose",
-        "--pose_checkpoint",
-        default="./ckpt/hrnet_w32_ap10k_256x256-18aac840_20211029.pth",
-        type=str,
-        help="pose ckpt path",
-    )
-    parser.add_argument(
-        "-pose_config",
-        default="./pose/hrnet_w32_ap10k_256_256.py",
-        help="Config file for pose",
-    )
-    parser.add_argument(
-        "--device",
-        default="cpu",
-        type=str,
-        help="device to run our model, can either be cpu or gpu",
-    )
-    parser.add_argument("--conf", default=0.5, type=float, help="test conf")
-    parser.add_argument("--nms", default=0.65, type=float, help="test nms threshold")
-    parser.add_argument("--tsize", default=640, type=int, help="test img size")
-    parser.add_argument(
-        "--fp16",
-        dest="fp16",
-        default=False,
-        action="store_true",
-        help="Adopting mix precision evaluating.",
-    )
-    parser.add_argument(
-        "--legacy",
-        dest="legacy",
-        default=False,
-        action="store_true",
-        help="To be compatible with older versions",
-    )
-    parser.add_argument(
-        "--fuse",
-        dest="fuse",
-        default=False,
-        action="store_true",
-        help="Fuse conv and bn for testing.",
-    )
-    parser.add_argument(
-        "--trt",
-        dest="trt",
-        default=False,
-        action="store_true",
-        help="Using TensorRT model for testing.",
-    )
-    parser.add_argument(
-        "--kpt-thr", type=float, default=0.3, help="Keypoint score threshold"
-    )
-    parser.add_argument(
-        "--radius", type=int, default=8, help="Keypoint radius for visualization"
-    )
-    parser.add_argument(
-        "--thickness", type=int, default=4, help="Link thickness for visualization"
-    )
-
-    parser.add_argument("--de", default="cuda:0", help="Device used for inference")
-    return parser
-
-
-def get_image_list(path):
-    image_names = []
-    for maindir, subdir, file_name_list in os.walk(path):
-        for filename in file_name_list:
-            apath = os.path.join(maindir, filename)
-            ext = os.path.splitext(apath)[1]
-            if ext in IMAGE_EXT:
-                image_names.append(apath)
-    return image_names
-
-
-class Predictor(object):
-    def __init__(
-        self,
-        model,
-        exp,
-        cls_names=COCO_CLASSES,
-        trt_file=None,
-        decoder=None,
-        device="cpu",
-        fp16=False,
-        legacy=False,
-    ):
+class Predictor:
+    def __init__(self, model, exp, cls_names=VOC_CLASSES, fp16=False):
         self.model = model
         self.cls_names = cls_names
-        self.decoder = decoder
         self.num_classes = exp.num_classes
-        # self.att_names = att_names    #
         self.confthre = exp.test_conf
         self.nmsthre = exp.nmsthre
         self.test_size = exp.test_size
-        self.device = device
         self.fp16 = fp16
-        self.preproc = ValTransform(legacy=legacy)
+        self.preproc = ValTransform(legacy=False)
 
     def inference(self, img):
         img_info = {"id": 0}
@@ -195,18 +109,11 @@ class Predictor(object):
         img_info["ratio"] = ratio
 
         img, _ = self.preproc(img, None, self.test_size)
-        img = torch.from_numpy(img).unsqueeze(0)
-        img = img.float()
-        if self.device == "gpu":
-            img = img.cuda()
-            if self.fp16:
-                img = img.half()  # to FP16
+        img = torch.from_numpy(img).unsqueeze(0).float()
 
         with torch.no_grad():
             t0 = time.time()
             outputs = self.model(img)
-            if self.decoder is not None:
-                outputs = self.decoder(outputs, dtype=outputs.type())
             outputs = postprocess(
                 outputs,
                 self.num_classes,
@@ -214,107 +121,111 @@ class Predictor(object):
                 self.nmsthre,
                 class_agnostic=True,
             )
-            logger.info("Infer time: {:.4f}s".format(time.time() - t0))
+            logger.info("Detector infer time: {:.4f}s".format(time.time() - t0))
         return outputs, img_info
 
-    def visual(self, output, img_info, cls_thresh=0.35):
+    def to_pose_and_labels(self, output, img_info):
+        """Return:
+        - ret_bbox: list of dicts for MMPose [{bbox:[x1,y1,x2,y2,score], cls_id, cls_name, score}, ...]
+        """
         ratio = img_info["ratio"]
-        img = img_info["raw_img"]
         if output is None:
-            return img
+            return []
+
         output = output.cpu()
-
-        bboxes = output[:, 0:4]
-
-        # preprocessing: resize
-        bboxes /= ratio
-
+        bboxes = output[:, 0:4] / ratio
         cls = output[:, 6]
         scores = output[:, 4] * output[:, 5]
-        # atts = output[:, 7:10]  # bbox,3
 
-        # HRNet
         ret_bbox = []
-        np_bbox = bboxes.numpy()
-        np_bbox = np_bbox.astype(int)
+        np_bbox = bboxes.numpy().astype(int)
         np_score = scores.numpy()
+        np_cls = cls.numpy().astype(int)
+
         for i in range(len(np_bbox)):
-            animal = {}
-            info = np.concatenate((np_bbox[i], [np_score[i]]), axis=0)
-            animal["bbox"] = info
+            score_i = float(np_score[i])
+            cls_id_i = int(np_cls[i])
+            cls_name_i = (
+                self.cls_names[cls_id_i]
+                if 0 <= cls_id_i < len(self.cls_names)
+                else str(cls_id_i)
+            )
+            animal = {
+                "bbox": np.concatenate((np_bbox[i], [score_i]), axis=0),
+                "cls_id": cls_id_i,
+                "cls_name": cls_name_i,
+                "score": score_i,
+            }
             ret_bbox.append(animal)
-        # SORT
-        sort_det = []
-        for i in range(len(bboxes)):
-            box = bboxes[i]
-            cla = cls[i]
-            box_conf = output[:, 4][i]
-            cls_conf = output[:, 5][i]
-            score = round(float(scores[i]), 4)
-            x0 = int(box[0])
-            y0 = int(box[1])
-            x1 = int(box[2])
-            y1 = int(box[3])
-            sort_det.append([x0, y0, x1, y1, box_conf, cls_conf, cla])
-
-        dets = np.array(sort_det)
-        dets = torch.from_numpy(dets).to(self.device)
-        # visual animal class
-        # vis_res = vis(img, bboxes, scores, cls, cls_thresh, self.cls_names)
-
-        return ret_bbox, dets
-
-        # return vis_res
+        return ret_bbox
 
 
-def image_demo(predictor, vis_folder, path, current_time, save_result, args):
-    if os.path.isdir(path):
-        files = get_image_list(path)
-    else:
-        files = [path]
-    files.sort()
-    pose_model = init_pose_model(
-        args.pose_config, args.pose_checkpoint, device=torch.device("cpu")
-    )
+def run_image(image_path: str, show_skeleton: bool):
+    # ----- Build YOLOX (CPU) -----
+    exp = get_exp(None, MODEL_NAME)
+    exp.test_conf = CONF_THRES
+    exp.nmsthre = NMS_THRES
+    exp.test_size = (TEST_SIZE, TEST_SIZE)
 
-    # NEW: action recognizer on CPU (change path if yours is ckpt/…)
-    action_pre = TSSTG(weight_file="ckpt/tsstg-model.pth", device="cpu")
+    model = exp.get_model()
+    logger.info("Model Summary: {}".format(get_model_info(model, exp.test_size)))
+    model.eval()
 
+    logger.info("loading detector checkpoint")
+    ckpt = torch.load(YOLOX_CKPT, map_location="cpu")
+    model.load_state_dict(ckpt["model"])
+    logger.info("loaded detector checkpoint.")
+
+    # Optional fuse (still CPU-safe)
+    try:
+        model = fuse_model(model)
+    except Exception:
+        pass
+
+    predictor = Predictor(model, exp, VOC_CLASSES, fp16=False)
+
+    # ----- Build pose (CPU) -----
+    pose_model = init_pose_model(POSE_CONFIG, POSE_CKPT, device=torch.device("cpu"))
     dataset = pose_model.cfg.data["test"]["type"]
     dataset_info = pose_model.cfg.data["test"].get("dataset_info", None)
     if dataset_info is None:
         warnings.warn(
-            "Please set `dataset_info` in the config."
-            "Check https://github.com/open-mmlab/mmpose/pull/663 for details.",
+            "Please set `dataset_info` in the pose config.",
             DeprecationWarning,
         )
+        dataset_info = None
     else:
         dataset_info = DatasetInfo(dataset_info)
 
-    for image_name in files:
-        outputs, img_info = predictor.inference(image_name)
-        ret_bbox, dets = predictor.visual(
-            outputs[0], img_info, predictor.confthre
-        )  #  list  detection bbox
-        # test a single image, with a list of bboxes.
-        if len(ret_bbox) == 0:
-            continue
-        frame = cv2.imread(image_name)
-        pose_results, returned_outputs = inference_top_down_pose_model(
-            pose_model,
-            frame,
-            ret_bbox,
-            bbox_thr=0.3,
-            format="xyxy",
-            dataset=dataset,
-            dataset_info=dataset_info,
-            return_heatmap=False,
-            outputs=None,
-        )
-        # output_layer_names
-        # print(pose_results)
+    # ----- Build action model (CPU) -----
+    action_pre = TSSTG(weight_file=ACTION_CKPT, device="cpu")
 
-        # show the results
+    # ----- Inference -----
+    outputs, img_info = predictor.inference(image_path)
+    if outputs is None or outputs[0] is None:
+        raise RuntimeError("No detections found.")
+
+    ret_bbox = predictor.to_pose_and_labels(outputs[0], img_info)
+    if len(ret_bbox) == 0:
+        raise RuntimeError("No detections above threshold.")
+
+    frame = cv2.imread(image_path)
+
+    # Pose (even if we don't draw skeletons, we still need kpts for the action label)
+    pose_results, _ = inference_top_down_pose_model(
+        pose_model,
+        frame,
+        ret_bbox,
+        bbox_thr=0.3,
+        format="xyxy",
+        dataset=dataset,
+        dataset_info=dataset_info,
+        return_heatmap=False,
+        outputs=None,
+    )
+
+    # Choose base image: with skeleton or not
+    if show_skeleton:
         vis_img = vis_pose_result(
             pose_model,
             frame,
@@ -322,276 +233,101 @@ def image_demo(predictor, vis_folder, path, current_time, save_result, args):
             dataset=dataset,
             dataset_info=dataset_info,
             kpt_score_thr=0.2,
-            radius=args.radius,
-            thickness=args.thickness,
+            radius=8,
+            thickness=4,
             show=False,
         )
+    else:
+        vis_img = frame.copy()
 
-        # vis_img currently has skeletons drawn; we'll draw text on top of it
+    # Always draw YOLOX bounding boxes (even if skeleton is hidden)
+    for rb in ret_bbox:
+        # rb["bbox"] is [x1, y1, x2, y2, score]
+        x1, y1, x2, y2, _ = rb["bbox"]
+        # clamp to image bounds and int()
+        x1 = max(0, int(x1))
+        y1 = max(0, int(y1))
+        x2 = min(frame.shape[1] - 1, int(x2))
+        y2 = min(frame.shape[0] - 1, int(y2))
+        cv2.rectangle(vis_img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+
+    # Draw animal class name + score (always)
+    for i, r in enumerate(pose_results):
+        if "bbox" in r and r["bbox"] is not None:
+            x1, y1, x2, y2 = list(map(int, r["bbox"][:4]))
+            org_cls = (x1, max(0, y1 - 28))
+            org_act = (x1, max(0, y1 - 8))
+        else:
+            # fallback to first keypoint
+            kpt = r["keypoints"]
+            org_cls = (int(kpt[0, 0]), max(0, int(kpt[0, 1]) - 28))
+            org_act = (int(kpt[0, 0]), max(0, int(kpt[0, 1]) - 8))
+
+        cls_name = ret_bbox[i].get("cls_name", "animal")
+        cls_score = ret_bbox[i].get("score", 0.0)
+
+        cv2.putText(
+            vis_img,
+            f"{cls_name} {cls_score:.2f}",
+            org_cls,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2,
+        )
+
+        # Action label (always). For single image, fake a short sequence.
+        kpt = r["keypoints"]
         h, w = frame.shape[:2]
-        for r in pose_results:
-            if "keypoints" not in r:
-                continue
-            kpt = r["keypoints"]  # shape (V,3)
+        seq = np.repeat(kpt[None, :, :], 30, axis=0)  # (T=30,V,3)
+        probs = action_pre.predict(seq, (w, h))[0]
+        label_idx = int(np.argmax(probs))
+        label = action_pre.class_names[label_idx]
+        score = float(probs[label_idx])
 
-            # Make a short "sequence" by repeating this frame so the motion stream exists
-            seq = np.repeat(kpt[None, :, :], 30, axis=0)  # (T=30,V,3)
-
-            probs = action_pre.predict(seq, (w, h))[0]  # (num_classes,)
-            label_idx = int(np.argmax(probs))
-            label = action_pre.class_names[label_idx]
-            score = float(probs[label_idx])
-
-            # Pick a place to draw (prefer bbox if present)
-            if "bbox" in r and r["bbox"] is not None:
-                x1, y1, x2, y2 = list(map(int, r["bbox"][:4]))
-                org = (x1, max(0, y1 - 8))
-            else:
-                x1, y1 = int(kpt[0, 0]), int(kpt[0, 1])
-                org = (x1, max(0, y1 - 8))
-
-            cv2.putText(
-                vis_img,
-                f"{label} {score:.2f}",
-                org,
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (0, 255, 0),
-                2,
-            )
-
-        if save_result:
-            save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-            )
-
-            os.makedirs(save_folder, exist_ok=True)
-            save_file_name = os.path.join(save_folder, os.path.basename(image_name))
-            logger.info("Saving detection result in {}".format(save_file_name))
-            cv2.imwrite(save_file_name, vis_img)
-        ch = cv2.waitKey(0)
-        if ch == 27 or ch == ord("q") or ch == ord("Q"):
-            break
-
-
-def imageflow_demo(predictor, vis_folder, current_time, args):
-    # tracker init
-    max_age = 10
-    tracker = Tracker(max_age=max_age, n_init=3)
-
-    # action recognition base on skeleton
-    action_pre = TSSTG()
-
-    # animal pose predict:  refer to AP-10k
-    pose_model = init_pose_model(
-        args.pose_config, args.pose_checkpoint, device=torch.device("cpu")
-    )
-    dataset = pose_model.cfg.data["test"]["type"]
-    dataset_info = pose_model.cfg.data["test"].get("dataset_info", None)
-    if dataset_info is None:
-        warnings.warn(
-            "Please set `dataset_info` in the config."
-            "Check https://github.com/open-mmlab/mmpose/pull/663 for details.",
-            DeprecationWarning,
+        cv2.putText(
+            vis_img,
+            f"{label} {score:.2f}",
+            org_act,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 255, 0),
+            2,
         )
-    else:
-        dataset_info = DatasetInfo(dataset_info)
 
-    args.demo = "image"
+    # Save result
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out_path = os.path.join(OUTPUT_DIR, os.path.basename(image_path))
+    cv2.imwrite(out_path, vis_img)
+    logger.info(f"Saved: {out_path}")
 
-    cap = cv2.VideoCapture(args.path if args.demo == "video" else args.camid)
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
-    fps = cap.get(cv2.CAP_PROP_FPS)
 
-    save_folder = os.path.join(
-        vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
+# ===============
+# CLI / entrypoint
+# ===============
+
+
+def make_parser():
+    p = argparse.ArgumentParser("Animal action (image only, CPU)")
+    p.add_argument("path", help="Path to a single image file")
+    p.add_argument(
+        "--no-skeleton",
+        action="store_true",
+        help="If set, do NOT draw skeletons (animal & action labels still drawn).",
     )
-
-    os.makedirs(save_folder, exist_ok=True)
-    if args.demo == "video":
-        save_path = os.path.join(save_folder, args.path.split("/")[-1])
-    else:
-        save_path = os.path.join(save_folder, "camera.mp4")
-    logger.info(f"video save_path is {save_path}")
-    vid_writer = cv2.VideoWriter(
-        save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
-    )
-
-    while True:
-        ret_val, frame = cap.read()
-        if ret_val:
-            outputs, img_info = predictor.inference(frame)
-            if outputs[0] == None:
-                if args.save_result:
-                    vid_writer.write(frame)
-                    continue
-            hrnet_bbox, dets = predictor.visual(
-                outputs[0], img_info, predictor.confthre
-            )  #  list  detection bbox
-            detected = dets
-            tracker.predict()
-
-            for track in tracker.tracks:
-                det = tensor(
-                    [track.to_tlbr().tolist() + [0.5, 1.0, 0.0]], dtype=float32
-                ).cuda()  #
-                detected = cat([detected, det], dim=0) if detected is not None else det
-
-            detections = []
-            if detected is not None:
-                t1 = time.time()
-                poses, returned_outputs = inference_top_down_pose_model(
-                    pose_model,
-                    frame,
-                    hrnet_bbox,
-                    bbox_thr=0.1,
-                    format="xyxy",
-                    dataset=dataset,
-                    dataset_info=dataset_info,
-                    return_heatmap=False,
-                    outputs=None,
-                )
-
-                # print('phose inference time:{}'.format(time.time()-t1))
-                detections = [
-                    Detection(
-                        kpt2bbox(ps["keypoints"][:, :2]),
-                        ps["keypoints"],
-                        ps["keypoints"][:, 2].mean(),
-                    )
-                    for ps in poses
-                ]
-
-            tracker.update(detections)
-
-            # predict each tracker
-            for i, track in enumerate(tracker.tracks):
-                j = i
-                if not track.is_confirmed():
-                    continue
-
-                track_id = track.track_id
-                bbox = track.to_tlbr().astype(int)
-                # center = track.get_center().astype(int)
-                clr = (255, 0, 0)
-
-                action = "pedding"
-
-                if len(track.keypoints_list) == 10:
-                    pts = np.array(track.keypoints_list, dtype=np.float32)
-                    out = action_pre.predict(pts, frame.shape[:2])
-                    action_name = action_pre.class_names[out[0].argmax()]
-                    action = "{}: {:.2f}%".format(action_name, out[0].max() * 100)
-
-                    frame = cv2.putText(
-                        frame,
-                        action,
-                        (bbox[0], bbox[1]),
-                        cv2.FONT_HERSHEY_COMPLEX,
-                        1.0,
-                        clr,
-                        2,
-                    )  # print action class
-
-            vis_img = vis_pose_result(
-                pose_model,
-                frame,
-                poses,
-                dataset=dataset,
-                dataset_info=dataset_info,
-                kpt_score_thr=0.1,
-                radius=args.radius,
-                thickness=args.thickness,
-                show=False,
-            )
-
-            if args.save_result:
-                vid_writer.write(vis_img)
-            ch = cv2.waitKey(1)
-            if ch == 27 or ch == ord("q") or ch == ord("Q"):
-                break
-        else:
-            break
+    return p
 
 
-def main(exp, args):
-    if not args.experiment_name:
-        args.experiment_name = exp.exp_name
+def main():
+    args = make_parser().parse_args()
 
-    file_name = os.path.join(exp.output_dir, args.experiment_name)
-    os.makedirs(file_name, exist_ok=True)
+    # sanity checks
+    ext = os.path.splitext(args.path)[1].lower()
+    if ext not in IMAGE_EXT:
+        raise ValueError(f"Unsupported image extension: {ext}")
 
-    vis_folder = None
-    if args.save_result:
-        vis_folder = os.path.join(file_name, "vis_res")
-        os.makedirs(vis_folder, exist_ok=True)
-
-    if args.trt:
-        args.device = "gpu"
-
-    logger.info("Args: {}".format(args))
-
-    if args.conf is not None:
-        exp.test_conf = args.conf
-    if args.nms is not None:
-        exp.nmsthre = args.nms
-    if args.tsize is not None:
-        exp.test_size = (args.tsize, args.tsize)
-
-    model = exp.get_model()
-    logger.info("Model Summary: {}".format(get_model_info(model, exp.test_size)))
-
-    if args.device == "gpu":
-        model.cuda()
-        if args.fp16:
-            model.half()  # to FP16
-    model.eval()
-
-    if not args.trt:
-        if args.ckpt is None:
-            ckpt_file = os.path.join(file_name, "best_ckpt.pth")
-        else:
-            ckpt_file = args.ckpt
-        logger.info("loading checkpoint")
-        ckpt = torch.load(ckpt_file, map_location="cpu")
-        # load the model state dict
-        model.load_state_dict(ckpt["model"])
-        logger.info("loaded checkpoint done.")
-
-    if args.fuse:
-        logger.info("\tFusing model...")
-        model = fuse_model(model)
-
-    if args.trt:
-        assert not args.fuse, "TensorRT model is not support model fusing!"
-        trt_file = os.path.join(file_name, "model_trt.pth")
-        assert os.path.exists(
-            trt_file
-        ), "TensorRT model is not found!\n Run python3 tools/trt.py first!"
-        model.head.decode_in_inference = False
-        decoder = model.head.decode_outputs
-        logger.info("Using TensorRT to inference")
-    else:
-        trt_file = None
-        decoder = None
-
-    predictor = Predictor(
-        model, exp, VOC_CLASSES, trt_file, decoder, args.device, args.fp16, args.legacy
-    )
-    current_time = time.localtime()
-
-    args.demo = "image"
-
-    if args.demo == "image":
-        image_demo(
-            predictor, vis_folder, args.path, current_time, args.save_result, args
-        )
-    elif args.demo == "video" or args.demo == "webcam":
-        imageflow_demo(predictor, vis_folder, current_time, args)
+    run_image(args.path, show_skeleton=not args.no_skeleton)
 
 
 if __name__ == "__main__":
-    args = make_parser().parse_args()
-    exp = get_exp(args.exp_file, args.name)
-    main(exp, args)
+    main()
