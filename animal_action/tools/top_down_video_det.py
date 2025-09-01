@@ -45,7 +45,7 @@ from yolox.utils import fuse_model, get_model_info, postprocess  # noqa: E402
 
 # YOLOX experiment/name and checkpoint (COCO, yolox-s by default)
 MODEL_NAME = "yolox-s"
-YOLOX_CKPT = "./target_detetion.pth"  # your detector checkpoint
+YOLOX_CKPT = "./target_detetion.pth"  # the detector checkpoint
 
 # Pose (AP-10K HRNet-W32)
 POSE_CONFIG = "./pose/hrnet_w32_ap10k_256_256.py"

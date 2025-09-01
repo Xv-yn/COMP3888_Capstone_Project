@@ -3,18 +3,20 @@
 # Copyright (c) Megvii, Inc. and its affiliates.
 
 import argparse
+import os
 import random
 import warnings
-from loguru import logger
-import os
+
 import torch
 import torch.backends.cudnn as cudnn
+from loguru import logger
 
 from yolox.core import Trainer, launch
 from yolox.exp import get_exp
 from yolox.utils import configure_nccl, configure_omp, get_num_devices
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '7'
+# os.environ["CUDA_VISIBLE_DEVICES"] = '7'
+
 
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX train parser")
@@ -132,3 +134,4 @@ if __name__ == "__main__":
         dist_url=dist_url,
         args=(exp, args),
     )
+
