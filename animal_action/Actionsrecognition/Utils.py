@@ -20,7 +20,7 @@ class Graph:
         - dilation: (int) controls the spacing between the kernel points.
     """
     def __init__(self,
-                 layout='coco_cut',
+                 layout='cattle',
                  strategy='uniform',
                  max_hop=1,
                  dilation=1):
@@ -32,23 +32,33 @@ class Graph:
         self.get_adjacency(strategy)
 
     def get_edge(self, layout):     # 此处改动
-        if layout == 'coco_cut':
-            self.num_node = 18  # 此处改动 22
+        # if layout == 'coco_cut':
+        #     self.num_node = 18  # 此处改动 22
+        #     self_link = [(i, i) for i in range(self.num_node)]
+        #     # neighbor_link = [(6, 4), (4, 2), (2, 13), (13, 1), (5, 3), (3, 1), (12, 10),
+        #     #                  (10, 8), (8, 2), (11, 9), (9, 7), (7, 1), (13, 0)]
+        #     # neighbor_link = [(8, 6), (6, 4), (4, 15), (15, 3), (7, 5), (5, 3), (14, 12),
+        #     #                  (12, 10), (10, 4), (13, 11), (11, 9), (9, 3), (15, 0), (0, 1), (0, 2)]
+        #     neighbor_link = [(0,1), (0,2), (1,2), (2,3), (3,17), (17,4), (3,5), (5,6), (6,7),
+        #                      (3,8), (8,9), (9,10), (4,11), (11,12), (12,13),
+        #                      (4,14), (14,15), (15,16)]  # AP-10K
+        #     # neighbor_link = [(0, 1), (0, 2), (1, 2),
+        #     #                  (3, 4), (4, 5), (5, 6), (7, 8), (8, 9), (9, 10),
+        #     #                  (21, 0), (21, 19), (21, 3), (21, 7), (21, 11), (21, 15),
+        #     #                  (11, 12), (12, 13), (13, 14), (15, 16), (16, 17), (17, 18),
+        #     #                  (19, 20)]  # wolf
+        #     self.edge = self_link + neighbor_link
+        #     self.center = 17    # default 21
+        if layout == 'cattle':
+            self.num_node = 16
             self_link = [(i, i) for i in range(self.num_node)]
-            # neighbor_link = [(6, 4), (4, 2), (2, 13), (13, 1), (5, 3), (3, 1), (12, 10),
-            #                  (10, 8), (8, 2), (11, 9), (9, 7), (7, 1), (13, 0)]
-            # neighbor_link = [(8, 6), (6, 4), (4, 15), (15, 3), (7, 5), (5, 3), (14, 12),
-            #                  (12, 10), (10, 4), (13, 11), (11, 9), (9, 3), (15, 0), (0, 1), (0, 2)]
-            neighbor_link = [(0,1), (0,2), (1,2), (2,3), (3,17), (17,4), (3,5), (5,6), (6,7),
-                             (3,8), (8,9), (9,10), (4,11), (11,12), (12,13),
-                             (4,14), (14,15), (15,16)]  # AP-10K
-            # neighbor_link = [(0, 1), (0, 2), (1, 2),
-            #                  (3, 4), (4, 5), (5, 6), (7, 8), (8, 9), (9, 10),
-            #                  (21, 0), (21, 19), (21, 3), (21, 7), (21, 11), (21, 15),
-            #                  (11, 12), (12, 13), (13, 14), (15, 16), (16, 17), (17, 18),
-            #                  (19, 20)]  # wolf
+            # JSON skeleton is 1-indexed → subtract 1
+            neighbor_link = [(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),
+                            (3,7),(7,8),(8,9),
+                            (0,10),(10,11),(11,12),
+                            (0,13),(13,14),(14,15)]
             self.edge = self_link + neighbor_link
-            self.center = 17    # default 21
+            self.center = 0   # choose a "torso" joint as center
         else:
             raise ValueError('This layout is not supported!')
 

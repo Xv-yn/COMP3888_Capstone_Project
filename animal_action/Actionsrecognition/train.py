@@ -5,16 +5,15 @@ from tqdm import tqdm
 from torch.utils import data
 from torch.optim.adadelta import Adadelta
 from sklearn.model_selection import train_test_split
-from Models import *
+from Actionsrecognition.Models import *
 import matplotlib.pyplot as plt
-
-
+from Actionsrecognition.data_converter import *
 
 save_folder = 'save/animal'
 
 device = 'cuda'
 epochs = 30
-batch_size = 256
+batch_size = 32
 
 # DATA FILES.
 # Should be in format of
@@ -28,11 +27,23 @@ batch_size = 256
 #   channels: Inputs data (x, y and scores), Default: 3
 #   num_class: Number of pose class to train, Default: 7
 
-data_files = ['./Data/action_train.pkl', './Data/action_val.pkl']  # '../Data/wolf_train-set(labelXscrw).pkl', 
-class_names = ['Stand', 'Walk', 'Run', 'Lie', 'Eat']
-num_class = len(class_names)
+# Data Acquistition
+class_map = {"feeding":0, "lying":1, "standing":2, "walking":3}
+num_class = len(class_map)
 
+generate_train_val_from_coco(
+    json_path="/home/lee/Desktop/COMP3888/COMP3888_Capstone_Project/training_set/_annotations_train.coco.json",
+    class_map=class_map,
+    img_root="/home/lee/Desktop/COMP3888/COMP3888_Capstone_Project/training_set",
+    save_train="Data/action_train.pkl",
+    save_val="Data/action_val.pkl",
+    test_size=0.2,
+    time_steps=1
+)
 
+data_files = ['./Data/action_train.pkl', './Data/action_val.pkl']
+
+# Train
 def load_dataset(data_files, batch_size, split_size=0.0):
     """Load data files into torch DataLoader with/without spliting train-test.
     """
@@ -90,7 +101,8 @@ if __name__ == '__main__':
 
     # MODEL.
     graph_args = {'strategy': 'spatial'}
-    model = TwoStreamSpatialTemporalGraph(graph_args, num_class).to(device)
+    # model = TwoStreamSpatialTemporalGraph(graph_args, num_class).to(device)
+    model = StreamSpatialTemporalGraph(3, graph_args, num_class).to(device)
     print(model)
 
     # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -130,7 +142,8 @@ if __name__ == '__main__':
                     lbs = lbs.to(device)
 
                     # Forward.
-                    out = model((pts, mot))
+                    # out = model((pts, mot)) # For T>1 frames
+                    out = model(pts)
                     loss = losser(out, lbs)
 
                     if phase == 'train':
