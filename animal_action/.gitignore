@@ -39,7 +39,7 @@ htmlcov/
 .coverage*
 .cache/
 
-# ---------- Large data & archives (optional) ----------
+# ---------- Large data & archives ----------
 data/
 datasets/
 *.zip
@@ -56,8 +56,7 @@ tensorboard/
 tb_logs/
 lightning_logs/
 
-# ---------- Checkpoints / weights (ANYWHERE) ----------
-# Common DL formats
+# ---------- Checkpoints / weights ----------
 **/*.pth
 **/*.pt
 **/*.ckpt
@@ -66,14 +65,24 @@ lightning_logs/
 **/*.trt
 **/*.weights
 
-# If you keep checkpoints in dedicated dirs, ignore them too
+# Dedicated checkpoint/weight dirs
 /ckpt/
 /checkpoints/
 /weights/
-/work_dirs/      # mmcv/mmpose default
+/work_dirs/   # mmcv/mmpose default
 
-# ---------- Project-specific: keep code, ignore top-level weights ----------
-# (Anchored so we don't ignore library code like yolox/models/)
-# Uncomment if you create these at the repo root:
-# /models/
+# ---------- Project-specific ----------
+# Generated datasets and pickles
+/Data/
+/animal_action/Data/
+animal_action/Actionsrecognition/save/
+*.pkl
 
+# Local test scripts
+animal_action/test.py
+animal_action/pose/generate_dataste.py
+
+# Local configs / debug
+*.gif
+*.jpg
+*.png
