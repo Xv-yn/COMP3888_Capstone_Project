@@ -1,10 +1,10 @@
 # detect_yolov8_simple.py
-from ultralytics import YOLO
 import cv2
+from ultralytics import YOLO
 
 # --- Paths ---
-model_path = "weights/yolov8m.pt"    # Pretrained model
-image_path = "data/images/img1.jpg"   # Test image
+model_path = "weights/yolov8m.pt"  # Pretrained model
+image_path = "data/images/img1.jpg"  # Test image
 save_path = "results/output.jpg"
 
 # --- Load model ---

@@ -8,13 +8,13 @@ Outputs:
     - annotated video (optional visualization)
 """
 
-from ultralytics import YOLO
-import cv2
 import json
 import os
 from pathlib import Path
-from tqdm import tqdm
 
+import cv2
+from tqdm import tqdm
+from ultralytics import YOLO
 
 # ==========================================================
 # Configuration
@@ -24,8 +24,8 @@ WEIGHTS = "weights/yolov8m.pt"
 SAVE_DIR = Path("results")
 CROP_DIR = Path("data/crops")
 CONF_THRES = 0.3
-TARGET_CLASS = "cow"   # adjust to match your dataset label names
-DRAW_BOX = True        # set False if you don't need visualization
+TARGET_CLASS = "cow"  # adjust to match your dataset label names
+DRAW_BOX = True  # set False if you don't need visualization
 
 
 # ==========================================================
@@ -49,7 +49,7 @@ frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 # Prepare output video writer
 out_path = SAVE_DIR / "annotated.mp4"
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 out = cv2.VideoWriter(str(out_path), fourcc, fps, (frame_width, frame_height))
 
 print(f"Processing video: {VIDEO_PATH}")
@@ -79,12 +79,14 @@ for frame_idx in tqdm(range(frame_count), desc="Detecting"):
             conf = float(box.conf[0])
 
             # Append to detections list
-            results_json.append({
-                "frame_id": frame_idx,
-                "label": label,
-                "confidence": round(conf, 3),
-                "bbox": [x1, y1, x2, y2]
-            })
+            results_json.append(
+                {
+                    "frame_id": frame_idx,
+                    "label": label,
+                    "confidence": round(conf, 3),
+                    "bbox": [x1, y1, x2, y2],
+                }
+            )
 
             # Save cropped region
             crop = frame[y1:y2, x1:x2]
@@ -95,8 +97,13 @@ for frame_idx in tqdm(range(frame_count), desc="Detecting"):
             if DRAW_BOX:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(
-                    frame, f"{label} {conf:.2f}", (x1, max(20, y1 - 10)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2
+                    frame,
+                    f"{label} {conf:.2f}",
+                    (x1, max(20, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2,
                 )
 
     # Write annotated frame
