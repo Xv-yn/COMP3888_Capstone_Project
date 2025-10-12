@@ -20,15 +20,28 @@ def is_image_file(path):
     return path.lower().endswith(valid_exts)
 
 
-def run_inference(model, image_path, output_dir="yolov8/results"):
+def run_inference(model, image_path, output_dir=None):
     """
-    Run YOLO inference for a single image and save results.
+    Run YOLO inference for a single image.
+    - If `output_dir` is a non-empty string, predictions are saved under that folder.
+    - If `output_dir` is empty/None, images are NOT saved.
     """
     print(f"[INFO] Running inference on: {image_path}")
-    results = model.predict(
-        source=image_path, save=True, project=output_dir, name="run", exist_ok=True
-    )
-    print(f"[INFO] Saved results in {output_dir}/run")
+
+    # Build predict kwargs based on whether saving is requested
+    kwargs = dict(source=image_path, exist_ok=True)
+    if output_dir:
+        kwargs.update(save=True, project=output_dir, name="run")
+    else:
+        kwargs.update(save=False)
+
+    results = model.predict(**kwargs)
+
+    if output_dir:
+        print(f"[INFO] Saved results in {output_dir}/run")
+    else:
+        print("[INFO] Results not saved (output_dir is empty).")
+
     return results
 
 
@@ -54,7 +67,7 @@ def main():
             sys.exit(1)
 
         for img in image_files:
-            run_inference(model, img)
+            run_inference(model, img, output_dir="results")
 
     elif os.path.isfile(input_path) and is_image_file(input_path):
         run_inference(model, input_path)

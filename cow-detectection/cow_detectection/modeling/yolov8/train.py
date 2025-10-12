@@ -1,4 +1,39 @@
-# train.py
+"""
+Purpose
+-------
+- Accept a *standard YOLO-format* dataset directory:
+      <dataset_root>/
+        ├─ train/images/*.jpg|png|...
+        ├─ train/labels/*.txt
+        ├─ val/images/*.jpg|png|...
+        └─ val/labels/*.txt
+- Validate the directory structure.
+- Write a *normalized* data YAML that works from any working directory:
+      path: <absolute dataset root>
+      train: train/images
+      val:   val/images
+      test:  test/images  (only if present)
+      nc:    <class count>
+      names: [<class0>, <class1>, ...]
+  If <dataset_root>/data.yaml exists, copy class names from it when possible.
+- Launch Ultralytics training and print locations of artifacts.
+
+Usage
+-----
+    python train.py /path/to/dataset \
+        --weights weights/yolov8m.pt \
+        --epochs 200 --batch 16 --imgsz 640 \
+        --name exp1
+
+Outputs
+-------
+Artifacts are written under:
+    results/training/<name>/
+      ├─ weights/{best.pt,last.pt}
+      ├─ results.csv
+      └─ (optional plots) labels.jpg, results.png, etc.
+"""
+
 import argparse
 from pathlib import Path
 import shutil
@@ -10,6 +45,10 @@ IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
 
 
 def assert_yolo_dir(ds: Path):
+    """
+    Validate that dataset contains the expected YOLO directory layout.
+    Exits the process with an error message if required paths are missing.
+    """
     req = [
         ds / "train" / "images",
         ds / "train" / "labels",
@@ -105,6 +144,9 @@ def write_min_yaml(ds: Path, out_yaml: Path):
 
 
 def parse_args():
+    """
+    CLI argument parsing.
+    """
     ap = argparse.ArgumentParser(description="Train YOLOv8 on a standard YOLO dataset folder.")
     ap.add_argument("dataset_dir", type=str, help="Path to dataset directory (YOLO format).")
     ap.add_argument(
@@ -126,6 +168,9 @@ def parse_args():
 
 
 def main():
+    """
+    Entry point: validate dataset, write YAML, run training, print artifact paths.
+    """
     args = parse_args()
     ds = Path(args.dataset_dir).expanduser().resolve()
     if not ds.exists() or not ds.is_dir():
