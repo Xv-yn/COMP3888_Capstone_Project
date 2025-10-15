@@ -14,10 +14,11 @@ import typer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.hipify.hipify_python import preprocessor
+
 from cow_detectection.modeling.base import BaseTrainer
 from cow_detectection.modeling.stgcn.model import StreamSpatialTemporalGraph, TwoStreamSpatialTemporalGraph
 from cow_detectection.modeling.stgcn.preprocessor import KeypointPreprocessor
-from cow_detectection.modeling.stgcn.utils import load_dataset
 
 
 class CowTrainer(BaseTrainer):
@@ -132,9 +133,9 @@ def main(
 
     # TODO: initialize dataset, dataloaders, model, trainer
     # 1. Load and preprocess data
-    df = load_dataset(path = 'None')
-    df_train, df_test = train_test_split(df, test_size=0.2, stratify=df["label"], random_state=42)
     preprocessor = KeypointPreprocessor(two_stream=(model_type == "twostream"))
+    df = preprocessor.load_dataset(path = 'None')
+    df_train, df_test = train_test_split(df, test_size=0.2, stratify=df["label"], random_state=42)
     # 2. Load train/test dataframes
     preprocessor.get_data_and_labels(df_train, df_test)
 

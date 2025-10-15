@@ -4,9 +4,10 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
+from cow_detectection.modeling.base import BaseInference
 from cow_detectection.modeling.stgcn.model import TwoStreamSpatialTemporalGraph
 import numpy as np
-from base_classes import BaseInference
+
 app = typer.Typer()
 
 
