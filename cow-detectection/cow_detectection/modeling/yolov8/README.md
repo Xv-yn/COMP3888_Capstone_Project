@@ -12,7 +12,7 @@ The goal is a minimal, reproducible workflow with clear outputs and sensible def
 
 ### Inference
 
-predict.py will:
+`predict.py` will:
 
 - Load weights/yolov8m.pt by default.
 - Accept `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.gif`.
@@ -33,7 +33,7 @@ yolov7/results/run/
 
 ### Training
 
-The command to be run to train the model.
+A sample command to be run to train the model.
 
 ```bash
 python train.py /path/to/dataset \
@@ -44,6 +44,20 @@ python train.py /path/to/dataset \
   --name exp1
 ```
 
+| Arguments     | Type | Default              | Description                                                                            | Simple                                                                       |
+| ------------- | ---- | -------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `dataset_dir` | str  | — (required)         | Path to dataset directory (YOLO format).                                               | Folder where your images/labels live.                                        |
+| `--weights`   | str  | `weights/yolov8m.pt` | Initial checkpoint to start from.                                                      | Which model to start from.                                                   |
+| `--imgsz`     | int  | `640`                | Training image size (square). Common choices: 416, 640, 768.                           | How big to resize images.                                                    |
+| `--epochs`    | int  | `100`                | Number of training epochs.                                                             | How many times all data is used to train.                                    |
+| `--batch`     | int  | `16`                 | Batch size per step. Tune to fit your GPU memory.                                      | How many images to concurrenly train at once.                                |
+| `--device`    | str  | `None`               | Compute device: `'0'` (GPU id), `'0,1'` (multi-GPU), `'cpu'`, `'mps'` (Apple Silicon). | Specifies waht hardware to use to train.                                     |
+| `--project`   | str  | `results/training`   | Root folder for run outputs (weights, logs, plots).                                    | Top-level output folder.                                                     |
+| `--name`      | str  | `run`                | Subfolder name for this run.                                                           | Folder name for this experiment.                                             |
+| `--workers`   | int  | `8`                  | Dataloader worker threads. Reduce on Windows if you see hangs.                         | How many helpers to increase training speed (adjust based hardware).         |
+| `--patience`  | int  | `50`                 | Early-stopping patience (epochs without val improvement).                              | Limit to stop early if training not improving.                               |
+| `--seed`      | int  | `0`                  | Random seed for reproducibility.                                                       | Removes "randomness", keeps results repeatable. Like a minecraft world seed. |
+
 ###### Memory tips (GPU OOM)
 
 If CUDA out of memory occurs:
@@ -51,6 +65,19 @@ If CUDA out of memory occurs:
 - Reduce batch size, e.g. --batch 8 or --batch 4.
 - Use a smaller model, e.g. --weights yolov8n.pt or yolov8s.pt.
 - Reduce image size, e.g. --imgsz 512.
+
+###### View Training Results (Graphs)
+
+```bash
+# Option A: point to a run directory (containing results.csv)
+python plots.py /path/to/results/training/exp1 --smooth 5
+
+# Option B: point directly to results.csv
+python plots.py /path/to/results/training/exp1/results.csv --smooth 5
+```
+
+This will write the loss results from training to `./results/training/exp1/plots/` or
+the specified directory.
 
 ## Dataset Layout (YOLO format)
 
@@ -69,7 +96,7 @@ This is the expected format of the training data.
 
 ## Importing run_inference from another module
 
-If the package layout includes **init**.py files, run_inference can be imported
+If the package layout includes **init**.py files, `run_inference` can be imported
 directly:
 
 ```python

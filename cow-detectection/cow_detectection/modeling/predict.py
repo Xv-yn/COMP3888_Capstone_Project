@@ -1,23 +1,29 @@
 import argparse
 import os
-import cv2
-import numpy as np
-import torch
-import typer
-from loguru import logger
 
-from ultralytics import YOLO
+import cv2
+from loguru import logger
 from mmpose.apis import inference_top_down_pose_model  # noqa: E402
 from mmpose.apis import init_pose_model, vis_pose_result
 from mmpose.datasets import DatasetInfo  # noqa: E402
-# --- local imports ---
-from cow_detectection.modeling.yolov8.predict import run_inference, draw_yolov8_results, extract_bboxes
+import numpy as np
+import torch
+import typer
+from ultralytics import YOLO
+
 from cow_detectection.modeling.stgcn.predict import TSSTGInference
+
+# --- local imports ---
+from cow_detectection.modeling.yolov8.predict import (
+    draw_yolov8_results,
+    extract_bboxes,
+    run_inference,
+)
 
 # =========================
 # Global constants
 # =========================
-YOLO_CKPT = "/home/lee/Desktop/COMP3888/COMP3888_Capstone_Project/cow-detectection/cow_detectection/modeling/yolov8/weights/yolov8m.pt"
+YOLO_CKPT = "yolov8/weights/yolov8m.pt"
 POSE_CONFIG = "hrnet/config/hrnet_w32_ap10k_256_256.py"
 POSE_CKPT = "hrnet/weights/hrnet_w32_ap10k.pth"
 ACTION_CKPT = "stgcn/weights/tsstg-model.pth"
@@ -27,12 +33,14 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 # CLI
 app = typer.Typer()
 
+
 def draw_action_labels(frame, bboxes, labels):
     """Draw labels on frame given MMPose-style bbox dicts and label strings."""
     for det, label in zip(bboxes, labels):
         x1, y1, x2, y2, _score = det["bbox"]  # unpack bbox from dict
-        cv2.putText(frame, label, (int(x1), int(y1) - 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        cv2.putText(
+            frame, label, (int(x1), int(y1) - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
+        )
 
 
 # =========================
