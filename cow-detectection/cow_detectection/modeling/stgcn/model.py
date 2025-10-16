@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils import Graph
+from cow_detectection.modeling.stgcn.utils import Graph
 
 class GraphConvolution(nn.Module):
     """The basic module for applying a graph convolution.

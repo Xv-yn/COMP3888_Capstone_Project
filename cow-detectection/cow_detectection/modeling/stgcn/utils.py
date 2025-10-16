@@ -43,49 +43,49 @@ class Graph:
         else:
             raise ValueError('This layout is not supported!')
 
-def get_adjacency(self, strategy):
-    valid_hop = range(0, self.max_hop + 1, self.dilation)
-    adjacency = np.zeros((self.num_node, self.num_node))
-    for hop in valid_hop:
-        adjacency[self.hop_dis == hop] = 1
-    normalize_adjacency = normalize_digraph(adjacency)
-
-    if strategy == 'uniform':
-        A = np.zeros((1, self.num_node, self.num_node))
-        A[0] = normalize_adjacency
-        self.A = A
-    elif strategy == 'distance':
-        A = np.zeros((len(valid_hop), self.num_node, self.num_node))
-        for i, hop in enumerate(valid_hop):
-            A[i][self.hop_dis == hop] = normalize_adjacency[self.hop_dis ==
-                                                            hop]
-        self.A = A
-    elif strategy == 'spatial':
-        A = []
+    def get_adjacency(self, strategy):
+        valid_hop = range(0, self.max_hop + 1, self.dilation)
+        adjacency = np.zeros((self.num_node, self.num_node))
         for hop in valid_hop:
-            a_root = np.zeros((self.num_node, self.num_node))
-            a_close = np.zeros((self.num_node, self.num_node))
-            a_further = np.zeros((self.num_node, self.num_node))
-            for i in range(self.num_node):
-                for j in range(self.num_node):
-                    if self.hop_dis[j, i] == hop:
-                        if self.hop_dis[j, self.center] == self.hop_dis[i, self.center]:
-                            a_root[j, i] = normalize_adjacency[j, i]
-                        elif self.hop_dis[j, self.center] > self.hop_dis[i, self.center]:
-                            a_close[j, i] = normalize_adjacency[j, i]
-                        else:
-                            a_further[j, i] = normalize_adjacency[j, i]
-            if hop == 0:
-                A.append(a_root)
-            else:
-                A.append(a_root + a_close)
-                A.append(a_further)
-        A = np.stack(A)
+            adjacency[self.hop_dis == hop] = 1
+        normalize_adjacency = normalize_digraph(adjacency)
 
-        self.A = A
-        # self.A = np.swapaxes(np.swapaxes(A, 0, 1), 1, 2)
-    else:
-        raise ValueError("This strategy is not supported!")
+        if strategy == 'uniform':
+            A = np.zeros((1, self.num_node, self.num_node))
+            A[0] = normalize_adjacency
+            self.A = A
+        elif strategy == 'distance':
+            A = np.zeros((len(valid_hop), self.num_node, self.num_node))
+            for i, hop in enumerate(valid_hop):
+                A[i][self.hop_dis == hop] = normalize_adjacency[self.hop_dis ==
+                                                                hop]
+            self.A = A
+        elif strategy == 'spatial':
+            A = []
+            for hop in valid_hop:
+                a_root = np.zeros((self.num_node, self.num_node))
+                a_close = np.zeros((self.num_node, self.num_node))
+                a_further = np.zeros((self.num_node, self.num_node))
+                for i in range(self.num_node):
+                    for j in range(self.num_node):
+                        if self.hop_dis[j, i] == hop:
+                            if self.hop_dis[j, self.center] == self.hop_dis[i, self.center]:
+                                a_root[j, i] = normalize_adjacency[j, i]
+                            elif self.hop_dis[j, self.center] > self.hop_dis[i, self.center]:
+                                a_close[j, i] = normalize_adjacency[j, i]
+                            else:
+                                a_further[j, i] = normalize_adjacency[j, i]
+                if hop == 0:
+                    A.append(a_root)
+                else:
+                    A.append(a_root + a_close)
+                    A.append(a_further)
+            A = np.stack(A)
+
+            self.A = A
+            # self.A = np.swapaxes(np.swapaxes(A, 0, 1), 1, 2)
+        else:
+            raise ValueError("This strategy is not supported!")
 
 def get_hop_distance(num_node, edge, max_hop=1):
     A = np.zeros((num_node, num_node))
