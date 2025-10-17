@@ -63,3 +63,18 @@ pts = np.load("/path/to/pts.npy")
 label = infer.infer(pts, image_size=(1920, 1080))
 print(label)
 ```
+
+## STGCN Model Architecture
+
+![](STGCN.png)
+
+| **Module**                     | **What It Does**                                                                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Input**                      | Takes in a sequence of data over time — for example, traffic speeds from many sensors or motion data from body joints.                                                                                              |
+| **ST-Conv Block**              | The “core engine” of the model. Each block mixes time information (how things change) and spatial information (how different nodes or sensors are connected). It does this using Temporal and Spatial Convolutions. |
+| **Output Layer**               | After several ST-Conv blocks have extracted deep spatio-temporal features, this layer turns those features into final predictions (e.g., next time-step traffic flow).                                              |
+| **Temporal Gated Convolution** | Learns how things change over time using 1D convolutions along the time axis. The “gating” part helps the network focus on important changes and ignore noise.                                                      |
+| **Spatial Graph Convolution**  | Learns how connected nodes (like roads or joints) influence each other using a graph structure. It passes messages between nodes based on their connections.                                                        |
+| **GLU (Gated Linear Unit)**    | Controls how much information passes through. Think of it like an attention gate that filters useful features and blocks irrelevant ones.                                                                           |
+| **1-D Convolution**            | A simple convolution applied over time — helps detect short-term trends or local temporal patterns.                                                                                                                 |
+| **Output**                     | Produces the final prediction, such as future values for each node at the next few time steps.                                                                                                                      |

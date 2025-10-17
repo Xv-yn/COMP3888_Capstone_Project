@@ -110,3 +110,15 @@ output = run_inference(model, "/path/to/image.jpg")
 > [!NOTE]
 > If output_dir is empty ("" or None), it won’t save images; otherwise it saves
 > under the specified directory.
+
+## YOLOv8 Model Architecture
+
+![](YOLOv8.png)
+
+| **Module**      | **What It Does**                                                                                                                                                                                                                                                                                                                                                            |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Input Image** | The original image that gets analyzed (e.g., 640×640 pixels). It’s the raw visual data that YOLOv8 uses to detect objects.                                                                                                                                                                                                                                                  |
+| **Backbone**    | Acts like the **feature extractor** — it converts the input image into a set of detailed features (edges, shapes, textures). Each layer (1–4) reduces the image’s size by half but increases its depth, learning progressively more abstract features. The `SPPF` (Spatial Pyramid Pooling Fast) helps capture both local and global context efficiently.                   |
+| **Neck**        | This is the **feature fusion** stage. It takes the multi-scale feature maps from the Backbone, upsamples them, and merges them using concatenation and convolution. This allows the network to combine fine details (small objects) with coarse context (large objects). The `C2f` blocks here refine the fused features for better object localization and classification. |
+| **Head**        | The **detection stage**. It predicts bounding boxes, object classes, and confidence scores. YOLOv8 uses a _decoupled head_, meaning separate branches for bounding box regression (`BBox_Loss`) and classification (`Cls_Loss`), which helps the model learn more efficiently.                                                                                              |
+| **Output**      | Produces the final detected objects — including bounding boxes, labels, and confidence levels — after filtering via Non-Maximum Suppression (NMS).                                                                                                                                                                                                                          |
