@@ -1,12 +1,33 @@
-import typer
-import torch
-import pandas as pd
-import numpy as np
+"""
+TS-STG (Two-Stream Spatial-Temporal Graph) action inference for cow keypoints.
+
+This module wraps a pretrained TS-STG model and provides a simple `.infer(...)`
+API that takes a single-frame set of keypoints and returns an action label.
+
+Pipeline inside `infer`:
+    1) Repeat the single-frame keypoints to a short clip (T=60) expected by the model.
+    2) Normalize keypoints by image size to [0, 1], then per-clip scale to [-1, 1].
+    3) Append a pelvis/torso midpoint keypoint to stabilize geometry.
+    4) Build two streams:
+        - Pose stream:  (C=coords, T=frames, V=nodes)
+        - Motion stream: frame-to-frame differences (velocity)
+    5) Run the two-stream GCN and return the top-1 action name.
+
+Usage:
+    tsstg = TSSTGInference(model_path="stgcn/weights/tsstg-model.pth", device="cuda")
+    # pts shape: (1, V, C) or (V, C) with C >= 2 (x, y[, score])
+    action = tsstg.infer(pts, image_size=(W, H))
+"""
+
 from typing import Optional
+
+import numpy as np
+import pandas as pd
+import torch
+import typer
 
 from cow_detectection.modeling.base import BaseInference
 from cow_detectection.modeling.stgcn.model import TwoStreamSpatialTemporalGraph
-import numpy as np
 
 app = typer.Typer()
 
@@ -72,3 +93,4 @@ class TSSTGInference(BaseInference):
 
         pred_index = torch.argmax(output, dim=1).item()
         return self.class_names[pred_index]
+
