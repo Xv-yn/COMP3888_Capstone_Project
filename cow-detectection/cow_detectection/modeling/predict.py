@@ -3,13 +3,13 @@ Multi-stage cow analytics: YOLOv8 detection → HRNet pose → TS-STG action rec
 
 Usage:
     # 1) YOLO only (draws boxes)
-    python predict_pipeline.py --option 1 --image-path /path/to/image.jpg
+    python predict.py --option 1 --image-path /path/to/image.jpg
 
     # 2) YOLO + HRNet pose (boxes + skeletons)
-    python predict_pipeline.py --option 2 --image-path /path/to/image.jpg --device cuda
+    python predict.py --option 2 --image-path /path/to/image.jpg --device cuda
 
     # 3) YOLO + HRNet + TS-STG action (boxes + skeletons + action labels)
-    python predict_pipeline.py --option 3 --image-path /path/to/image.jpg --device cuda
+    python predict.py --option 3 --image-path /path/to/image.jpg --device cuda
 
 Notes:
     - Restored visualization is written to ../results/vis_res/<image_name>.
@@ -80,7 +80,7 @@ def main(
         help="Show HRNet skeleton overlay when using HRNet or TSSTG options",
     ),
 ):
-    
+
     import copy
 
     frame = cv2.imread(image_path)
@@ -161,3 +161,4 @@ def main(
 
 if __name__ == "__main__":
     app()
+
