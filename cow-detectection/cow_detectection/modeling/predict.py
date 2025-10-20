@@ -62,7 +62,7 @@ def draw_action_labels(frame, bboxes, labels):
     for det, label in zip(bboxes, labels):
         x1, y1, x2, y2, _score = det["bbox"]  # unpack bbox from dict
         cv2.putText(
-            frame, label, (int(x1), int(y1) - 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
+            frame, label, (int(x1), int(y1) - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (102, 0, 204), 2
         )
 
 
@@ -148,8 +148,9 @@ def main(
             pts = np.array(animal["keypoints"])[None, :, :]  # (1, V, C)
             action_prob = tsstg.infer(pts, frame_orig.shape[:2])
             label = tsstg.class_names[np.argmax(action_prob)]
-            action_labels.append(label)
-
+            score=tsstg.score(pts, frame_orig.shape[:2])
+            labels=f"{label} {score:.2f}"
+            action_labels.append(labels)
         draw_action_labels(frame_vis, bboxes, action_labels)
 
     # Step 4: Save
