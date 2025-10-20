@@ -93,4 +93,22 @@ class TSSTGInference(BaseInference):
 
         pred_index = torch.argmax(output, dim=1).item()
         return self.class_names[pred_index]
+    def score(self, pts: np.ndarray, image_size: tuple = (1920, 1080)) -> float:
+        # build clip + streams (same as your infer)
+        pts = np.repeat(pts, 60, axis=0)
+        pts[:, :, :2] = normalize_points_with_size(pts[:, :, :2], *image_size)
+        pts[:, :, :2] = scale_pose(pts[:, :, :2])
+        midpoint = ((pts[:, 3, :] + pts[:, 4, :]) / 2).reshape(pts.shape[0], 1, -1)
+        pts = np.concatenate((pts, midpoint), axis=1)
+
+        pts_tensor = torch.tensor(pts, dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+        motion_tensor = pts_tensor[:, :2, 1:, :] - pts_tensor[:, :2, :-1, :]
+        pts_tensor, motion_tensor = pts_tensor.to(self.device), motion_tensor.to(self.device)
+
+        with torch.no_grad():
+            logits = self.model((pts_tensor, motion_tensor))   
+            probs  = F.softmax(logits, dim=1)                  
+            pred_i = int(torch.argmax(probs, dim=1).item())
+            prob = float(probs[0, pred_i].item())
+        return prob
 
