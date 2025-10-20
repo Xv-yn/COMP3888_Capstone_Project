@@ -80,7 +80,7 @@ def draw_yolov8_results(frame, detections):
         label = f"{det['cls_name']} {score:.2f}"
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
         cv2.putText(frame, label, (int(x1), int(y1) - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (102, 0, 204), 2)
 
 def extract_bboxes(detections, conf_threshold=0.5):
     """Convert YOLO detections to MMPose-compatible format."""
