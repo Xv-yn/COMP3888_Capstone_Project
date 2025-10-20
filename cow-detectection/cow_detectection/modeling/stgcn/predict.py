@@ -95,7 +95,7 @@ class TSSTGInference(BaseInference):
         pred_index = torch.argmax(output, dim=1).item()
         return self.class_names[pred_index]
     def score(self, pts: np.ndarray, image_size: tuple = (1920, 1080)) -> float:
-        # build clip + streams (same as your infer)
+        # build clip + streams
         pts = np.repeat(pts, 60, axis=0)
         pts[:, :, :2] = normalize_points_with_size(pts[:, :, :2], *image_size)
         pts[:, :, :2] = scale_pose(pts[:, :, :2])
