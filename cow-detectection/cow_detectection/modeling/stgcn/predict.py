@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import torch
 import typer
+import torch.nn.functional as F
 
 from cow_detectection.modeling.base import BaseInference
 from cow_detectection.modeling.stgcn.model import TwoStreamSpatialTemporalGraph
