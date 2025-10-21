@@ -3,13 +3,13 @@ Multi-stage cow analytics: YOLOv8 detection → HRNet pose → TS-STG action rec
 
 Usage:
     # 1) YOLO only (draws boxes)
-    python predict.py --option 1 --image-path /path/to/image.jpg
+    python predict.py --option 1 --image-path /path/to/image.jpg --show-skeleton/--no-show-skeleton
 
     # 2) YOLO + HRNet pose (boxes + skeletons)
-    python predict.py --option 2 --image-path /path/to/image.jpg --device cuda
+    python predict.py --option 2 --image-path /path/to/image.jpg --device cuda --show-skeleton/--no-show-skeleton
 
     # 3) YOLO + HRNet + TS-STG action (boxes + skeletons + action labels)
-    python predict.py --option 3 --image-path /path/to/image.jpg --device cuda
+    python predict.py --option 3 --image-path /path/to/image.jpg --device cuda --show-skeleton/--no-show-skeleton
 
 Notes:
     - Restored visualization is written to ../results/vis_res/<image_name>.
@@ -148,8 +148,8 @@ def main(
             pts = np.array(animal["keypoints"])[None, :, :]  # (1, V, C)
             action_prob = tsstg.infer(pts, frame_orig.shape[:2])
             label = tsstg.class_names[np.argmax(action_prob)]
-            score=tsstg.score(pts, frame_orig.shape[:2])
-            labels=f"{label} {score:.2f}"
+            score = tsstg.score(pts, frame_orig.shape[:2])
+            labels = f"{label} {score:.2f}"
             action_labels.append(labels)
         draw_action_labels(frame_vis, bboxes, action_labels)
 
@@ -162,4 +162,3 @@ def main(
 
 if __name__ == "__main__":
     app()
-

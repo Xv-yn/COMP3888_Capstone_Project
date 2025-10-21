@@ -17,22 +17,23 @@ Command-Line Interface (CLI)
 The entry point is a Typer-based CLI defined in `predict.py`.
 
 ```bash
-python predict_pipeline.py --option <stage> --image-path <path> [--device cpu|cuda]
+python predict_pipeline.py --option <stage> --image-path <path> [--device cpu|cuda] --show-skeleton/--no-show-skeleton
 ```
 
 Sample command:
 
 ```bash
-python predict_pipeline.py --option 1 --image-path img3.png
+python predict_pipeline.py --option 1 --image-path img3.png --show-skeleton/--no-show-skeleton
 ```
 
 ###### Arguments
 
-| Argument       | Type  | Required | Default | Description                                                                                        |
-| -------------- | ----- | -------- | ------- | -------------------------------------------------------------------------------------------------- |
-| `--option`     | `int` | yes      | —       | Selects pipeline stage: <br> `1`: YOLO only <br> `2`: YOLO + HRNet <br> `3`: YOLO + HRNet + TS-STG |
-| `--image-path` | `str` | yes      | —       | Path to the input image. Supports `.jpg`, `.jpeg`, `.png`, `.bmp`, `.webp`.                        |
-| `--device`     | `str` | no       | `cpu`   | Device to run inference on (`cpu` or `cuda`).                                                      |
+| Argument          | Type  | Required | Default | Description                                                                                        |
+| ----------------- | ----- | -------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `--option`        | `int` | yes      | —       | Selects pipeline stage: <br> `1`: YOLO only <br> `2`: YOLO + HRNet <br> `3`: YOLO + HRNet + TS-STG |
+| `--image-path`    | `str` | yes      | —       | Path to the input image. Supports `.jpg`, `.jpeg`, `.png`, `.bmp`, `.webp`.                        |
+| `--device`        | `str` | no       | `cpu`   | Device to run inference on (`cpu` or `cuda`).                                                      |
+| `--show-skeleton` | `str` | no       | `True`  | Flag to render skeleton in final image                                                             |
 
 ### Pipeline Overview
 
