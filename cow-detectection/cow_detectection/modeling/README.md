@@ -59,3 +59,14 @@ python predict_pipeline.py --option 1 --image-path img3.png --show-skeleton/--no
   - TS-STG action recognition (e.g., standing, walking, lying)
 - Draws bounding boxes, skeletons, and predicted action labels
 - Saves results to `../results/vis_res/`
+
+### Changing the weights
+
+Inside `predict.py`, simply change the directories to specify which weights you wish to use.
+
+```
+YOLO_CKPT = "yolov8/weights/yolov8m.pt"
+POSE_CONFIG = "hrnet/config/hrnet_w32_ap10k_256_256.py"
+POSE_CKPT = "hrnet/weights/hrnet_w32_ap10k.pth"
+ACTION_CKPT = "stgcn/weights/tsstg-model.pth"
+```

@@ -5,6 +5,7 @@ loguru
 mkdocs
 pip
 python-dotenv
+ultralytics
 pandas
 typer
 absl-py==2.3.1
