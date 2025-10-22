@@ -35,7 +35,6 @@ import typer
 from ultralytics import YOLO
 
 from cow_detectection.modeling.stgcn.predict import TSSTGInference
-
 # --- local imports ---
 from cow_detectection.modeling.yolov8.predict import (
     draw_yolov8_results,
@@ -56,7 +55,6 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 # CLI
 app = typer.Typer()
 
-
 def draw_action_labels(frame, bboxes, labels):
     """Draw labels on frame given MMPose-style bbox dicts and label strings."""
     for det, label in zip(bboxes, labels):
@@ -64,6 +62,7 @@ def draw_action_labels(frame, bboxes, labels):
         cv2.putText(
             frame, label, (int(x1), int(y1) - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (102, 0, 204), 2
         )
+
 
 
 # =========================
@@ -96,6 +95,8 @@ def main(
     detections = run_inference(yolo_model, frame_orig)
     frame_yolo = frame_orig.copy()
     draw_yolov8_results(frame_yolo, detections)
+    # <- default output is the YOLO-only visualization
+    frame_out = frame_yolo
 
     if option >= 2:
         # Step 2: Pose estimation
@@ -140,6 +141,8 @@ def main(
 
         # always draw boxes on top
         draw_yolov8_results(frame_vis, detections)
+        frame_out = frame_vis  # <- now the output becomes the pose+YOLO image
+        
     if option == 3:
         # Step 3: Action recognition
         tsstg = TSSTGInference(model_path=ACTION_CKPT, device=device)
@@ -148,15 +151,14 @@ def main(
             pts = np.array(animal["keypoints"])[None, :, :]  # (1, V, C)
             action_prob = tsstg.infer(pts, frame_orig.shape[:2])
             label = tsstg.class_names[np.argmax(action_prob)]
-            score = tsstg.score(pts, frame_orig.shape[:2])
-            labels = f"{label} {score:.2f}"
-            action_labels.append(labels)
-        draw_action_labels(frame_vis, bboxes, action_labels)
+            action_labels.append(label)
+
+        draw_action_labels(frame_out, bboxes, action_labels)
 
     # Step 4: Save
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_DIR, os.path.basename(image_path))
-    cv2.imwrite(out_path, frame_vis)
+    cv2.imwrite(out_path, frame_out)
     logger.info(f"Saved visualization to {out_path}")
 
 
