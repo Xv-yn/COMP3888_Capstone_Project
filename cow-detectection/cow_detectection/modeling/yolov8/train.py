@@ -1,12 +1,4 @@
 """
-Purpose
--------
-- Accept a *standard YOLO-format* dataset directory:
-      <dataset_root>/
-        ├─ train/images/*.jpg|png|...
-        ├─ train/labels/*.txt
-        ├─ val/images/*.jpg|png|...
-        └─ val/labels/*.txt
 - Validate the directory structure.
 - Write a *normalized* data YAML that works from any working directory:
       path: <absolute dataset root>
@@ -17,6 +9,7 @@ Purpose
       names: [<class0>, <class1>, ...]
   If <dataset_root>/data.yaml exists, copy class names from it when possible.
 - Launch Ultralytics training and print locations of artifacts.
+- ALSO: print live 'accuracy' each epoch (defined as mAP@0.50 IoU), plus mAP50-95, precision, recall.
 
 Usage
 -----
@@ -143,6 +136,43 @@ def write_min_yaml(ds: Path, out_yaml: Path):
     return out_yaml
 
 
+# ----------------------- Live metric printing (accuracy) -----------------------
+def _fmt(x):
+    return f"{x:.4f}" if isinstance(x, (int, float)) else "-"
+
+
+def make_epoch_printer():
+    """
+    Returns a callback that prints 'accuracy' (mAP50) and other key metrics
+    at the end of each epoch during Ultralytics training.
+    """
+    state = {"best_map50": 0.0}
+
+    def on_fit_epoch_end(trainer):
+        # 'trainer.metrics' is a dict populated after validation each epoch.
+        # Keys commonly include: 'metrics/precision(B)', 'metrics/recall(B)',
+        # 'metrics/mAP50(B)', 'metrics/mAP50-95(B)'. Fall back to plain keys if needed.
+        m = getattr(trainer, "metrics", {}) or {}
+
+        p = m.get("metrics/precision(B)", m.get("precision"))
+        r = m.get("metrics/recall(B)", m.get("recall"))
+        m50 = m.get("metrics/mAP50(B)", m.get("map50"))
+        m5095 = m.get("metrics/mAP50-95(B)", m.get("map"))
+
+        if isinstance(m50, (int, float)) and m50 > state["best_map50"]:
+            state["best_map50"] = float(m50)
+
+        print(
+            f"[METRICS] acc(mAP50)={_fmt(m50)}  mAP50-95={_fmt(m5095)}  "
+            f"P={_fmt(p)}  R={_fmt(r)}  best_acc={_fmt(state['best_map50'])}"
+        )
+
+    return on_fit_epoch_end
+
+
+# ------------------------------------------------------------------------------
+
+
 def parse_args():
     """
     CLI argument parsing.
@@ -170,6 +200,7 @@ def parse_args():
 def main():
     """
     Entry point: validate dataset, write YAML, run training, print artifact paths.
+    Also prints live 'accuracy' (mAP50) each epoch via a callback.
     """
     args = parse_args()
     ds = Path(args.dataset_dir).expanduser().resolve()
@@ -184,6 +215,9 @@ def main():
 
     print(f"[INFO] Loading model: {args.weights}")
     model = YOLO(args.weights)
+
+    # Register live metric printer
+    model.add_callback("on_fit_epoch_end", make_epoch_printer())
 
     print("[INFO] Starting training…")
     results = model.train(
@@ -210,6 +244,19 @@ def main():
     print(f"[INFO] Best checkpoint: {out_dir / 'weights' / 'best.pt'}")
     print(f"[INFO] Last checkpoint: {out_dir / 'weights' / 'last.pt'}")
     print(f"[INFO] Metrics CSV: {out_dir / 'results.csv'}")
+
+    # Try to print a final 'accuracy' (mAP50) summary if available
+    final_map50 = None
+    try:
+        # Some Ultralytics versions return a results object with .metrics dict
+        final_map50 = getattr(results, "metrics", {}).get("metrics/mAP50(B)", None) or getattr(
+            results, "metrics", {}
+        ).get("map50", None)
+    except Exception:
+        pass
+
+    if isinstance(final_map50, (int, float)):
+        print(f"[INFO] Final accuracy (mAP50): {final_map50:.4f}")
 
 
 if __name__ == "__main__":
