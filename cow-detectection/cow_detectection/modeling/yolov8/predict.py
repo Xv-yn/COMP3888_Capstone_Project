@@ -73,15 +73,52 @@ def run_inference(model, frame, output_dir=None):
     return detections
 
 
-def draw_yolov8_results(frame, detections):
-    """Draw bounding boxes and labels on the frame."""
+def draw_yolov8_results(frame, detections,
+                        box_color=(102, 0, 204),
+                        min_scale=0.10, max_scale=1.2,
+                        padding=3, thickness=1):
+    H, W = frame.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
     for det in detections:
         x1, y1, x2, y2, score = det["bbox"]
+        x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
         label = f"{det['cls_name']} {score:.2f}"
-        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (102, 0, 204), 2)
-        cv2.putText(frame, label, (int(x1), int(y1) - 5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (102, 0, 204), 2)
 
+        # draw bbox
+        cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+
+        # adaptive font scale from bbox size
+        bw, bh = max(1, x2 - x1), max(1, y2 - y1)
+        target_cap = 0.28 * bh
+        scale = 0.7*max(min_scale, min(max_scale, target_cap / 18.0))
+
+        (tw, th), base = cv2.getTextSize(label, font, scale, thickness)
+        while tw + 2*padding > bw and scale > min_scale:
+            scale *= 0.7
+            (tw, th), base = cv2.getTextSize(label, font, scale, thickness)
+
+        # place label inside-top (fallback to inside-bottom)
+        tx = x1
+        ty = y1 + th + padding + 1
+        if ty + base > y2:
+            ty = max(y1 + th + padding, y2 - base - 1)
+
+        # clamp horizontally to image
+        if tx + tw + 2*padding > W: tx = max(0, W - tw - 2*padding)
+        if tx < 0: tx = 0
+
+        # label background
+        bg1 = (int(tx - padding), int(ty - th - base - padding))
+        bg2 = (int(tx + tw + padding), int(ty + padding - base))
+        bg1 = (max(0,bg1[0]), max(0,bg1[1]))
+        bg2 = (min(W-1,bg2[0]), min(H-1,bg2[1]))
+        fill = (max(box_color[0]-40,0), max(box_color[1]-40,0), max(box_color[2]-40,0))
+        cv2.rectangle(frame, bg1, bg2, fill, thickness=-1)
+
+        # text
+        cv2.putText(frame, label, (int(tx), int(ty - base)),
+                    font, scale, (255,255,255), thickness, cv2.LINE_AA)
 def extract_bboxes(detections, conf_threshold=0.5):
     """Convert YOLO detections to MMPose-compatible format."""
     ret_bbox = []
