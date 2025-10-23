@@ -78,7 +78,7 @@ def draw_yolov8_results(frame, detections):
     for det in detections:
         x1, y1, x2, y2, score = det["bbox"]
         label = f"{det['cls_name']} {score:.2f}"
-        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (102, 0, 204), 2)
         cv2.putText(frame, label, (int(x1), int(y1) - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (102, 0, 204), 2)
 
