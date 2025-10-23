@@ -54,16 +54,53 @@ IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
 # CLI
 app = typer.Typer()
+def draw_action_label(frame, bbox,action_label, reserve_above_px=30,
+                      color=(102, 0, 204),
+                      min_scale=0.10, max_scale=1.2,
+                      padding=3, thickness=1):
+    """Draw action text ABOVE the bbox; font scales with bbox."""
+    H, W = frame.shape[:2]
+    x1, y1, x2, y2 = map(int, bbox)
+    bw, bh = max(1, x2 - x1), max(1, y2 - y1)
+    font = cv2.FONT_HERSHEY_SIMPLEX
 
+    # base scale from bbox height
+    target_cap = 0.28 * bh
+    scale = 0.7*max(min_scale, min(max_scale, target_cap / 18.0))
+    (tw, th), base = cv2.getTextSize(action_label, font, scale, thickness)
+
+    # shrink to fit bbox width
+    while tw + 2*padding > bw and scale > min_scale:
+        scale *= 0.9
+        (tw, th), base = cv2.getTextSize(action_label, font, scale, thickness)
+
+    # position above
+    ax, ay = x1, y1 - reserve_above_px
+    # if off top, shrink; if still off, clamp
+    while (ay - th - base - padding) < 0 and scale > min_scale:
+        scale *= 0.9
+        (tw, th), base = cv2.getTextSize(action_label, font, scale, thickness)
+    if ay - th - base - padding < 0:
+        ay = th + base + padding
+
+    # clamp horizontally
+    if ax + tw + 2*padding > W: ax = max(0, W - tw - 2*padding)
+    if ax < 0: ax = 0
+
+    # background + text
+    bg1 = (int(ax - padding), int(ay - th - base - padding))
+    bg2 = (int(ax + tw + padding), int(ay + padding - base))
+    bg1 = (max(0,bg1[0]), max(0,bg1[1]))
+    bg2 = (min(W-1,bg2[0]), min(H-1,bg2[1]))
+    fill = (max(color[0]-40,0), max(color[1]-40,0), max(color[2]-40,0))
+    cv2.rectangle(frame, bg1, bg2, fill, thickness=-1)
+    cv2.putText(frame, action_label, (int(ax), int(ay - base)),
+                font, scale, (255,255,255), thickness, cv2.LINE_AA)
 def draw_action_labels(frame, bboxes, labels):
     """Draw labels on frame given MMPose-style bbox dicts and label strings."""
     for det, label in zip(bboxes, labels):
-        x1, y1, x2, y2, _score = det["bbox"]  # unpack bbox from dict
-        cv2.putText(
-            frame, label, (int(x1), int(y1) - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (102, 0, 204), 2
-        )
-
-
+        x1, y1, x2, y2, score = det["bbox"]         
+        draw_action_label(frame, (x1, y1, x2, y2), label, reserve_above_px=3)
 
 # =========================
 # Main pipeline
@@ -150,9 +187,10 @@ def main(
         for animal in pose_results:
             pts = np.array(animal["keypoints"])[None, :, :]  # (1, V, C)
             action_prob = tsstg.infer(pts, frame_orig.shape[:2])
-            label = tsstg.class_names[np.argmax(action_prob)]
-            action_labels.append(label)
-
+            score= tsstg.score(pts,frame_orig.shape[:2])
+            text = f"{action_prob} {score:.2f}" 
+            action_labels.append(text)
+        print(action_labels)
         draw_action_labels(frame_out, bboxes, action_labels)
 
     # Step 4: Save
