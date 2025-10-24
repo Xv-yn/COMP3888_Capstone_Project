@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 """
-hrnet_test.py (v4)
-Runs HRNet inference from modeling/hrnet/hrnet_inference.py
-on images in the testing folder (or any --source path).
-Fixed to visible_ratio mode.
-python hrnet_test.py --source ./yolo_results --thres 0.8
+pose_test.py
+Run pose inference directly using MMPose (no hrnet_inference.py).
+
+Usage:
+    python pose_test.py --source ./yolo_results --thres 0.8
 """
 
-import argparse, pickle, shutil, subprocess, sys
+import argparse
 from pathlib import Path
+import shutil
+import cv2
+import warnings
 import numpy as np
+from mmpose.apis import init_pose_model, inference_top_down_pose_model
+from mmpose.datasets import DatasetInfo
 
 VALID_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
+# ---------------------------------------------------------------
+# utility
+# ---------------------------------------------------------------
 def copy_images(src: Path, dst: Path):
-    """Copy all images from testing folder into HRNet data/input folder."""
+    """Copy all images from source into pose model input folder."""
     if dst.exists():
         shutil.rmtree(dst)
     dst.mkdir(parents=True, exist_ok=True)
@@ -25,84 +33,93 @@ def copy_images(src: Path, dst: Path):
         shutil.copy2(p, dst / p.name)
     return len(imgs)
 
-def run_hrnet_inference(python_bin: str, script_path: Path):
-    """Run hrnet_inference.py and stream logs live."""
-    process = subprocess.Popen(
-        [python_bin, str(script_path)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-    for line in iter(process.stdout.readline, ''):
-        print(line, end='')
-    process.stdout.close()
-    ret = process.wait()
-    if ret != 0:
-        raise RuntimeError("hrnet_inference.py failed")
-
 def visible_ratio_score(keypoints):
-    """Compute ratio of visible joints (x,y != None)."""
-    total = len(keypoints)
-    if total == 0:
+    """Compute ratio of visible joints."""
+    if len(keypoints) == 0:
         return 0.0
-    visible = sum(1 for kp in keypoints if kp.get("x") is not None and kp.get("y") is not None)
-    return visible / total
+    visible = sum(1 for (x, y, s) in keypoints if s > 0)
+    return visible / len(keypoints)
 
+# ---------------------------------------------------------------
+# main
+# ---------------------------------------------------------------
 def main():
-    # --- Path setup ---
-    testing_dir = Path(__file__).resolve().parent
-    project_root = testing_dir.parent  # cow_detectection/
-    hrnet_script = project_root / "modeling" / "hrnet" / "hrnet_inference.py"
-
-    # HRNet uses its own relative paths (data/input/, results/)
-    hrnet_root = hrnet_script.parent
-    data_input = hrnet_root / "data" / "input"
-    results_pkl = hrnet_root / "results" / "keypoints.pkl"
-
-    ap = argparse.ArgumentParser(description="Run HRNet test on testing folder images.")
-    ap.add_argument("--source", type=Path, default=testing_dir / "yolo_results",
-                    help="Folder containing YOLO crop images (default: ./yolo_results)")
-    ap.add_argument("--thres", type=float, default=0.60,
-                    help="Skeleton passes if visible_ratio >= this threshold (default 0.8).")
+    ap = argparse.ArgumentParser(description="Run pose model test on YOLO results.")
+    ap.add_argument("--source", type=Path, default=Path("./yolo_results"),
+                    help="Folder containing YOLO detection/crop images")
+    ap.add_argument("--thres", type=float, default=0.8,
+                    help="Skeleton passes if visible_ratio >= this threshold")
+    ap.add_argument("--device", default="cuda:0", help="Device to run inference")
+    ap.add_argument("--pose-config", type=Path, required=True,
+                    help="Path to pose model config file")
+    ap.add_argument("--pose-ckpt", type=Path, required=True,
+                    help="Path to pose model checkpoint file")
     args = ap.parse_args()
 
-    if not hrnet_script.exists():
-        raise FileNotFoundError(f"Cannot find HRNet script at {hrnet_script}")
+    imgs = [p for p in args.source.rglob("*") if p.suffix.lower() in VALID_EXTS]
+    if not imgs:
+        raise FileNotFoundError(f"No images found under {args.source}")
 
-    # --- Step 1: prepare input ---
-    n = copy_images(args.source, data_input)
-    print(f"[prep] Copied {n} image(s) into {data_input}\n")
+    print(f"[prep] Found {len(imgs)} image(s) under {args.source}")
 
-    # --- Step 2: run HRNet inference ---
-    print(f"[run] Launching HRNet inference from: {hrnet_script}")
-    run_hrnet_inference(sys.executable, hrnet_script)
+    # ---------------------------------------------------------------
+    # initialize model
+    # ---------------------------------------------------------------
+    pose_model = init_pose_model(str(args.pose_config), str(args.pose_ckpt), device=args.device)
+    dataset = pose_model.cfg.data["test"]["type"]
+    dataset_info = pose_model.cfg.data["test"].get("dataset_info", None)
+    if dataset_info is None:
+            warnings.warn("Please set `dataset_info` in the pose config.", DeprecationWarning)
+            dataset_info = None
+    else:
+        dataset_info = DatasetInfo(dataset_info)
 
-    # --- Step 3: evaluate results ---
-    if not results_pkl.exists():
-        raise FileNotFoundError(f"Expected results at {results_pkl}, but not found.")
-
-    with open(results_pkl, "rb") as f:
-        results = pickle.load(f)
-
+    # ---------------------------------------------------------------
+    # run inference + visible ratio evaluation
+    # ---------------------------------------------------------------
+    print(f"[run] Running pose inference on {len(imgs)} images...")
     accepted, total = 0, 0
-    print("\n[eval] Evaluating skeleton quality...")
-    for i, r in enumerate(results, 1):
-        sk = visible_ratio_score(r.get("skeleton", []))
-        passed = sk >= args.thres
+    results_summary = []
+
+    for i, img_path in enumerate(imgs, 1):
+        frame = cv2.imread(str(img_path))
+        height, width = frame.shape[:2]
+        person = [dict(bbox=[0, 0, width, height, 1.0])]
+        pose_results, _ = inference_top_down_pose_model(
+            pose_model,
+            frame,
+            person,
+            bbox_thr=0.3,
+            format="xyxy",
+            dataset=dataset,
+            dataset_info=dataset_info,
+            return_heatmap=False,
+            outputs=None,
+        )
+
+        if not pose_results:
+            vis_ratio = 0.0
+        else:
+            keypoints = pose_results[0]["keypoints"]  # shape [n, 3]
+            vis_ratio = visible_ratio_score(keypoints)
+
+        passed = vis_ratio >= args.thres
         total += 1
         accepted += int(passed)
         status = "✓" if passed else "✗"
-        print(f"  [{i:03d}] {r.get('image', '<unknown>'):25s}  visible_ratio={sk:5.2f}  {status}")
+        print(f"  [{i:03d}] {img_path.name:25s}  visible_ratio={vis_ratio:5.2f}  {status}")
+        results_summary.append(dict(image=str(img_path), visible_ratio=vis_ratio, passed=passed))
 
+    # ---------------------------------------------------------------
+    # summary
+    # ---------------------------------------------------------------
     rate = accepted / total if total else 0.0
-    print("\n===== HRNet Test Summary =====")
+    print("\n===== Pose Test Summary =====")
     print(f"Images tested       : {total}")
     print(f"Accepted skeletons  : {accepted}")
     print(f"Acceptance rate     : {rate:.3f}")
-    print(f"Mode                : visible_ratio (fixed)")
+    print(f"Mode                : visible_ratio")
     print(f"Skeleton threshold  : {args.thres:.2f}")
-    print(f"Results pickle      : {results_pkl}")
 
 if __name__ == "__main__":
     main()
