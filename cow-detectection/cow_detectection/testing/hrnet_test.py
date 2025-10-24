@@ -78,7 +78,7 @@ def main():
             pose_model,
             frame,
             person,
-            bbox_thr=0.3,
+            bbox_thr=None,
             format="xyxy",
             dataset=dataset,
             dataset_info=dataset_info,
@@ -99,9 +99,6 @@ def main():
         status = "✓" if passed else "✗"
 
         print(f"  [{i:03d}] {img_path.name:25s}  avg_score={avg_score:5.2f}  {status}")
-        if keypoint_scores:
-            print(f"         Keypoint scores: {keypoint_scores}")
-
         results_summary.append(dict(
             image=str(img_path),
             avg_score=avg_score,
