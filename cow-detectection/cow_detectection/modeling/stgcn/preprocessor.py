@@ -71,34 +71,29 @@ class KeypointPreprocessor(BasePreprocessor):
         """
         features, labels = [], []
         for fil in data_files:
-            with open(fil, "rb") as f:
+            with open(fil, 'rb') as f:
                 fts, lbs = pickle.load(f)
                 features.append(fts)
                 labels.append(lbs)
-
+            del fts, lbs
         features = np.concatenate(features, axis=0)
         labels = np.concatenate(labels, axis=0)
 
-        # Convert (N, T, V, C) -> (N, C, T, V)
-        features = torch.tensor(features, dtype=torch.float32).permute(0, 3, 1, 2)
-        labels = torch.tensor(labels, dtype=torch.long)
-
         if split_size > 0:
-            x_train, x_valid, y_train, y_valid = train_test_split(
-                features, labels,
-                test_size=split_size,
-                random_state=9,
-                stratify=labels
-            )
-            train_set = data.TensorDataset(x_train, y_train)
-            valid_set = data.TensorDataset(x_valid, y_valid)
-            train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
-            valid_loader = data.DataLoader(valid_set, batch_size=batch_size)
-            return train_loader, valid_loader
-
-        train_set = data.TensorDataset(features, labels)
-        train_loader = data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
-        return train_loader, None
+            x_train, x_valid, y_train, y_valid = train_test_split(features, labels, test_size=split_size,
+                                                                random_state=9)
+            train_set = data.TensorDataset(torch.tensor(x_train, dtype=torch.float32).permute(0, 3, 1, 2),
+                                        torch.tensor(y_train, dtype=torch.float32))
+            valid_set = data.TensorDataset(torch.tensor(x_valid, dtype=torch.float32).permute(0, 3, 1, 2),
+                                        torch.tensor(y_valid, dtype=torch.float32))
+            train_loader = data.DataLoader(train_set, batch_size, shuffle=True)
+            valid_loader = data.DataLoader(valid_set, batch_size)
+        else:
+            train_set = data.TensorDataset(torch.tensor(features, dtype=torch.float32).permute(0, 3, 1, 2),
+                                        torch.tensor(labels, dtype=torch.float32))
+            train_loader = data.DataLoader(train_set, batch_size, shuffle=True)
+            valid_loader = None
+        return train_loader, valid_loader
 
     def _build_features(self, df: pd.DataFrame) -> np.ndarray:
         """
