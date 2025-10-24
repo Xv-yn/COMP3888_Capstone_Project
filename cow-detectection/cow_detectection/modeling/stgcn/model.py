@@ -212,7 +212,7 @@ class StreamSpatialTemporalGraph(nn.Module):
         x = self.cls(x)
         x = x.view(x.size(0), -1)
 
-        return x
+        return torch.sigmoid(x)
 
 
 class TwoStreamSpatialTemporalGraph(nn.Module):
