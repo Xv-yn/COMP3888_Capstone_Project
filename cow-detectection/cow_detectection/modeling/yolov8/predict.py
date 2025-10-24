@@ -2,7 +2,7 @@
 Run YOLOv8 inference on a single image or on all images in a directory.
 
 Usage:
-    python predict.py /path/to/image_or_directory
+    python predict.py /path/to/image_or_directory --conf-thr 0.5
 """
 
 import glob
@@ -20,7 +20,7 @@ def is_image_file(path):
     return path.lower().endswith(valid_exts)
 
 
-def run_inference(model, frame, output_dir=None):
+def run_inference(model, frame, output_dir=None, conf_thr=0.5):
     """
     Run YOLO inference for a single image.
     - If `output_dir` is a non-empty string, predictions are saved under that folder.
@@ -41,6 +41,13 @@ def run_inference(model, frame, output_dir=None):
     scores = result.boxes.conf.cpu().numpy()
     classes = result.boxes.cls.cpu().numpy()
 
+    # Filter detections below confidence threshold
+    mask = scores >= conf_thr
+    boxes = boxes[mask]
+    scores = scores[mask]
+    classes = classes[mask]
+    result.boxes = result.boxes[mask]  # update for visualization
+
     # Get original image size used by YOLO
     orig_h, orig_w = result.orig_shape  # no [0], just unpack the tuple
     scale_x = w0 / orig_w
@@ -56,7 +63,7 @@ def run_inference(model, frame, output_dir=None):
         y2 *= scale_y
 
         cls_id = int(classes[i])
-        score = scores[i]
+        score = float(scores[i])
 
         detections.append({
             "bbox": [x1, y1, x2, y2, score],
@@ -65,8 +72,13 @@ def run_inference(model, frame, output_dir=None):
             "score": score
         })
 
+    # Save visualization with filtered boxes
     if output_dir:
-        print(f"[INFO] Saved results in {output_dir}/run")
+        vis = result.plot()
+        os.makedirs(output_dir, exist_ok=True)
+        save_path = os.path.join(output_dir, os.path.basename("filtered_result.jpg"))
+        cv2.imwrite(save_path, vis)
+        print(f"[INFO] Saved filtered results to {output_dir}/run")
     else:
         print("[INFO] Results not saved (output_dir is empty).")
 
@@ -119,6 +131,8 @@ def draw_yolov8_results(frame, detections,
         # text
         cv2.putText(frame, label, (int(tx), int(ty - base)),
                     font, scale, (255,255,255), thickness, cv2.LINE_AA)
+
+
 def extract_bboxes(detections, conf_threshold=0.5):
     """Convert YOLO detections to MMPose-compatible format."""
     ret_bbox = []
@@ -134,13 +148,13 @@ def extract_bboxes(detections, conf_threshold=0.5):
     return ret_bbox
 
 
-
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python predict.py <path/to/image/or/folder>")
+        print("Usage: python predict.py <path/to/image/or/folder> [--conf-thr 0.5]")
         sys.exit(1)
 
     input_path = sys.argv[1]
+    conf_thr = float(sys.argv[sys.argv.index("--conf-thr") + 1]) if "--conf-thr" in sys.argv else 0.5
     model_path = os.path.join("weights", "yolov8m.pt")
 
     # Load model
@@ -157,10 +171,12 @@ def main():
             sys.exit(1)
 
         for img in image_files:
-            run_inference(model, img, output_dir="results")
+            frame = cv2.imread(img)
+            run_inference(model, frame, output_dir="results", conf_thr=conf_thr)
 
     elif os.path.isfile(input_path) and is_image_file(input_path):
-        run_inference(model, input_path)
+        frame = cv2.imread(input_path)
+        run_inference(model, frame, conf_thr=conf_thr)
 
     else:
         print(f"[ERROR] Invalid path or unsupported file format: {input_path}")
