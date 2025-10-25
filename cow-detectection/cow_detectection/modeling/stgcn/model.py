@@ -5,6 +5,7 @@ The ST-GCN takes sequences of cow skeleton keypoints extracted via HRNet
 and applies spatial-temporal graph convolutions to classify behaviors such
 as standing, lying, or eating.
 """
+
 ### Reference from: https://github.com/yysijie/st-gcn/tree/master/net
 
 import torch
@@ -12,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from cow_detectection.modeling.stgcn.utils import Graph
+
 
 class GraphConvolution(nn.Module):
     """The basic module for applying a graph convolution.
@@ -39,28 +41,35 @@ class GraphConvolution(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size,
-                 t_kernel_size=1,
-                 t_stride=1,
-                 t_padding=0,
-                 t_dilation=1,
-                 bias=True):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        t_kernel_size=1,
+        t_stride=1,
+        t_padding=0,
+        t_dilation=1,
+        bias=True,
+    ):
         super().__init__()
 
         self.kernel_size = kernel_size
-        self.conv = nn.Conv2d(in_channels,
-                              out_channels * kernel_size,
-                              kernel_size=(t_kernel_size, 1),
-                              padding=(t_padding, 0),
-                              stride=(t_stride, 1),
-                              dilation=(t_dilation, 1),
-                              bias=bias)
+        self.conv = nn.Conv2d(
+            in_channels,
+            out_channels * kernel_size,
+            kernel_size=(t_kernel_size, 1),
+            padding=(t_padding, 0),
+            stride=(t_stride, 1),
+            dilation=(t_dilation, 1),
+            bias=bias,
+        )
 
     def forward(self, x, A):
         x = self.conv(x)
         n, kc, t, v = x.size()
         x = x.view(n, self.kernel_size, kc // self.kernel_size, t, v)
-        x = torch.einsum('nkctv,kvw->nctw', (x, A))
+        x = torch.einsum("nkctv,kvw->nctw", (x, A))
 
         return x.contiguous()
 
@@ -87,10 +96,7 @@ class st_gcn(nn.Module):
                 :math:`V` is the number of graph nodes.
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size,
-                 stride=1,
-                 dropout=0,
-                 residual=True):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, dropout=0, residual=True):
         super().__init__()
         assert len(kernel_size) == 2
         assert kernel_size[0] % 2 == 1
@@ -98,28 +104,23 @@ class st_gcn(nn.Module):
         padding = ((kernel_size[0] - 1) // 2, 0)
 
         self.gcn = GraphConvolution(in_channels, out_channels, kernel_size[1])
-        self.tcn = nn.Sequential(nn.BatchNorm2d(out_channels),
-                                 nn.ReLU(inplace=True),
-                                 nn.Conv2d(out_channels,
-                                           out_channels,
-                                           (kernel_size[0], 1),
-                                           (stride, 1),
-                                           padding),
-                                 nn.BatchNorm2d(out_channels),
-                                 nn.Dropout(dropout, inplace=True)
-                                 )
+        self.tcn = nn.Sequential(
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, (kernel_size[0], 1), (stride, 1), padding),
+            nn.BatchNorm2d(out_channels),
+            nn.Dropout(dropout, inplace=True),
+        )
 
         if not residual:
             self.residual = lambda x: 0
         elif (in_channels == out_channels) and (stride == 1):
             self.residual = lambda x: x
         else:
-            self.residual = nn.Sequential(nn.Conv2d(in_channels,
-                                                    out_channels,
-                                                    kernel_size=1,
-                                                    stride=(stride, 1)),
-                                          nn.BatchNorm2d(out_channels)
-                                          )
+            self.residual = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=(stride, 1)),
+                nn.BatchNorm2d(out_channels),
+            )
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x, A):
@@ -151,40 +152,42 @@ class StreamSpatialTemporalGraph(nn.Module):
             :math:`out_channels` is number of out_channels of the last layer.
     """
 
-    def __init__(self, in_channels, graph_args, num_class=None,
-                 edge_importance_weighting=True, **kwargs):
+    def __init__(
+        self, in_channels, graph_args, num_class=None, edge_importance_weighting=True, **kwargs
+    ):
         super().__init__()
         # Load graph.
         graph = Graph(**graph_args)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
-        self.register_buffer('A', A)
+        self.register_buffer("A", A)
 
         # Networks.
         spatial_kernel_size = A.size(0)
         temporal_kernel_size = 9
         kernel_size = (temporal_kernel_size, spatial_kernel_size)
-        kwargs0 = {k: v for k, v in kwargs.items() if k != 'dropout'}
+        kwargs0 = {k: v for k, v in kwargs.items() if k != "dropout"}
 
         self.data_bn = nn.BatchNorm1d(in_channels * A.size(1))
-        self.st_gcn_networks = nn.ModuleList((
-            st_gcn(in_channels, 64, kernel_size, 1, residual=False, **kwargs0),
-            st_gcn(64, 64, kernel_size, 1, **kwargs),
-            st_gcn(64, 64, kernel_size, 1, **kwargs),
-            st_gcn(64, 64, kernel_size, 1, **kwargs),
-            st_gcn(64, 128, kernel_size, 2, **kwargs),
-            st_gcn(128, 128, kernel_size, 1, **kwargs),
-            st_gcn(128, 128, kernel_size, 1, **kwargs),
-            st_gcn(128, 256, kernel_size, 2, **kwargs),
-            st_gcn(256, 256, kernel_size, 1, **kwargs),
-            st_gcn(256, 256, kernel_size, 1, **kwargs)
-        ))
+        self.st_gcn_networks = nn.ModuleList(
+            (
+                st_gcn(in_channels, 64, kernel_size, 1, residual=False, **kwargs0),
+                st_gcn(64, 64, kernel_size, 1, **kwargs),
+                st_gcn(64, 64, kernel_size, 1, **kwargs),
+                st_gcn(64, 64, kernel_size, 1, **kwargs),
+                st_gcn(64, 128, kernel_size, 2, **kwargs),
+                st_gcn(128, 128, kernel_size, 1, **kwargs),
+                st_gcn(128, 128, kernel_size, 1, **kwargs),
+                st_gcn(128, 256, kernel_size, 2, **kwargs),
+                st_gcn(256, 256, kernel_size, 1, **kwargs),
+                st_gcn(256, 256, kernel_size, 1, **kwargs),
+            )
+        )
 
         # initialize parameters for edge importance weighting.
         if edge_importance_weighting:
-            self.edge_importance = nn.ParameterList([
-                nn.Parameter(torch.ones(A.size()))
-                for i in self.st_gcn_networks
-            ])
+            self.edge_importance = nn.ParameterList(
+                [nn.Parameter(torch.ones(A.size())) for i in self.st_gcn_networks]
+            )
         else:
             self.edge_importance = [1] * len(self.st_gcn_networks)
 
@@ -212,7 +215,7 @@ class StreamSpatialTemporalGraph(nn.Module):
         x = self.cls(x)
         x = x.view(x.size(0), -1)
 
-        return torch.sigmoid(x)
+        return x
 
 
 class TwoStreamSpatialTemporalGraph(nn.Module):
@@ -233,15 +236,14 @@ class TwoStreamSpatialTemporalGraph(nn.Module):
         - Output: :math:`(N, num_class)`
     """
 
-    def __init__(self, graph_args, num_class, edge_importance_weighting=True,
-                 **kwargs):
+    def __init__(self, graph_args, num_class, edge_importance_weighting=True, **kwargs):
         super().__init__()
-        self.pts_stream = StreamSpatialTemporalGraph(3, graph_args, None,
-                                                     edge_importance_weighting,
-                                                     **kwargs)
-        self.mot_stream = StreamSpatialTemporalGraph(2, graph_args, None,
-                                                     edge_importance_weighting,
-                                                     **kwargs)
+        self.pts_stream = StreamSpatialTemporalGraph(
+            3, graph_args, None, edge_importance_weighting, **kwargs
+        )
+        self.mot_stream = StreamSpatialTemporalGraph(
+            2, graph_args, None, edge_importance_weighting, **kwargs
+        )
 
         self.fcn = nn.Linear(256 * 2, num_class)
 
