@@ -55,6 +55,27 @@ The goal is to create a **usable, accurate, and efficient system** that supports
 
 5. Your environment is now ready. ✅
 
+#### Option 2: Using Conda (via Makefile)
+
+If you prefer using Conda, the Makefile already provides a setup command:
+
+```bash
+make create_environment
+```
+
+This will create a Conda environment named `cow-detectection` using Python 3.10.  
+Activate it after creation:
+
+```bash
+conda activate cow-detectection
+```
+
+Then install dependencies:
+
+```bash
+make requirements
+```
+
 ### Downloading weights
 
 Below is a link to all the weights.
@@ -108,7 +129,8 @@ This project leverages a combination of deep learning frameworks and pose estima
 - **[PyTorch](https://pytorch.org/)** – Core deep learning framework for model training and inference.
 - **[TensorFlow](https://www.tensorflow.org/)** – Alternative framework explored for model benchmarking.
 - **[YOLOv8](https://github.com/ultralytics/ultralytics)** – State-of-the-art object detection and keypoint estimation backbone.
-- **[DeepLabCut](https://github.com/DeepLabCut/DeepLabCut)** – Specialized toolkit for animal pose estimation, used for comparison and fine-tuned training.
+- **[HRNet](https://github.com/HRNet/HRNet-Human-Pose-Estimation)** – For high-precision keypoint/skeleton detection.
+- **[ST-GCN (TS-STG)](https://github.com/yysijie/st-gcn)** – For spatio-temporal graph convolution-based action recognition.
 
 Together, these tools allow us to:
 
