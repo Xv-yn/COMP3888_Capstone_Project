@@ -140,8 +140,7 @@ def main(
         for animal in pose_results:
             pts = np.array(animal["keypoints"])[None, :, :]  # (1, V, C)
             action_prob = tsstg.infer(pts, frame_orig.shape[:2])
-            label = tsstg.class_names[np.argmax(action_prob)]
-            action_labels.append(label)
+            action_labels.append(action_prob)
 
         draw_action_labels(frame_vis, bboxes, action_labels)
 
