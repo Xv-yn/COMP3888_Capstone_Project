@@ -48,7 +48,7 @@ from cow_detectection.modeling.yolov8.predict import (
 YOLO_CKPT = "yolov8/weights/yolov8m.pt"
 POSE_CONFIG = "hrnet/config/hrnet_w32_ap10k_256_256.py"
 POSE_CKPT = "hrnet/weights/hrnet_w32_ap10k.pth"
-ACTION_CKPT = "stgcn/results/best.pt"
+ACTION_CKPT = "stgcn/weights/tsstg-model.pth"
 OUTPUT_DIR = "../results/vis_res"
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 

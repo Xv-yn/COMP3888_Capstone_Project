@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 from cow_detectection.modeling.stgcn.utils import Graph
 
+
 class GraphConvolution(nn.Module):
     """The basic module for applying a graph convolution.
     Args:
@@ -38,7 +39,6 @@ class GraphConvolution(nn.Module):
                 :math:`V` is the number of graph nodes.
 
     """
-
     def __init__(self, in_channels, out_channels, kernel_size,
                  t_kernel_size=1,
                  t_stride=1,
@@ -59,7 +59,7 @@ class GraphConvolution(nn.Module):
     def forward(self, x, A):
         x = self.conv(x)
         n, kc, t, v = x.size()
-        x = x.view(n, self.kernel_size, kc // self.kernel_size, t, v)
+        x = x.view(n, self.kernel_size, kc//self.kernel_size, t, v)
         x = torch.einsum('nkctv,kvw->nctw', (x, A))
 
         return x.contiguous()
@@ -86,7 +86,6 @@ class st_gcn(nn.Module):
                 :math:`T_{in}/T_{out}` is a length of input/output sequence,
                 :math:`V` is the number of graph nodes.
     """
-
     def __init__(self, in_channels, out_channels, kernel_size,
                  stride=1,
                  dropout=0,
@@ -96,6 +95,7 @@ class st_gcn(nn.Module):
         assert kernel_size[0] % 2 == 1
 
         padding = ((kernel_size[0] - 1) // 2, 0)
+
 
         self.gcn = GraphConvolution(in_channels, out_channels, kernel_size[1])
         self.tcn = nn.Sequential(nn.BatchNorm2d(out_channels),
@@ -125,7 +125,7 @@ class st_gcn(nn.Module):
     def forward(self, x, A):
         res = self.residual(x)
         x = self.gcn(x, A)
-
+    
         x = self.tcn(x) + res
 
         return self.relu(x)
@@ -150,7 +150,6 @@ class StreamSpatialTemporalGraph(nn.Module):
         or If num_class is `None`: `(N, out_channels)`
             :math:`out_channels` is number of out_channels of the last layer.
     """
-
     def __init__(self, in_channels, graph_args, num_class=None,
                  edge_importance_weighting=True, **kwargs):
         super().__init__()
@@ -158,7 +157,7 @@ class StreamSpatialTemporalGraph(nn.Module):
         graph = Graph(**graph_args)
         A = torch.tensor(graph.A, dtype=torch.float32, requires_grad=False)
         self.register_buffer('A', A)
-
+        
         # Networks.
         spatial_kernel_size = A.size(0)
         temporal_kernel_size = 9
@@ -194,7 +193,7 @@ class StreamSpatialTemporalGraph(nn.Module):
             self.cls = lambda x: x
 
     def forward(self, x):
-
+        
         # data normalization.
         N, C, T, V = x.size()
         x = x.permute(0, 3, 1, 2).contiguous()  # (N, V, C, T)
@@ -212,7 +211,7 @@ class StreamSpatialTemporalGraph(nn.Module):
         x = self.cls(x)
         x = x.view(x.size(0), -1)
 
-        return torch.sigmoid(x)
+        return x
 
 
 class TwoStreamSpatialTemporalGraph(nn.Module):
@@ -232,7 +231,6 @@ class TwoStreamSpatialTemporalGraph(nn.Module):
             :math:`V` is the number of graph nodes,
         - Output: :math:`(N, num_class)`
     """
-
     def __init__(self, graph_args, num_class, edge_importance_weighting=True,
                  **kwargs):
         super().__init__()
@@ -248,8 +246,9 @@ class TwoStreamSpatialTemporalGraph(nn.Module):
     def forward(self, inputs):
         out1 = self.pts_stream(inputs[0])
         out2 = self.mot_stream(inputs[1])
-
+  
         concat = torch.cat([out1, out2], dim=-1)
         out = self.fcn(concat)
+       
 
         return torch.sigmoid(out)
