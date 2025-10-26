@@ -20,7 +20,7 @@ PYBIN="${PYBIN:-python}"
 # Resolve image path to an absolute path BEFORE changing directories
 # Works on Linux; if `realpath` isn't available, fall back to Python.
 if command -v realpath >/dev/null 2>&1; then
-  IMG_ABS="$(realpath -m -- "$IMG_INPUT")"
+  IMG_ABS="$(realpath "$IMG_INPUT")"
 else
   IMG_ABS="$("$PYBIN" - <<PY
 import os, sys

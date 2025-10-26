@@ -103,6 +103,7 @@ class st_gcn(nn.Module):
 
         padding = ((kernel_size[0] - 1) // 2, 0)
 
+
         self.gcn = GraphConvolution(in_channels, out_channels, kernel_size[1])
         self.tcn = nn.Sequential(
             nn.BatchNorm2d(out_channels),
@@ -126,7 +127,7 @@ class st_gcn(nn.Module):
     def forward(self, x, A):
         res = self.residual(x)
         x = self.gcn(x, A)
-
+    
         x = self.tcn(x) + res
 
         return self.relu(x)
@@ -197,7 +198,7 @@ class StreamSpatialTemporalGraph(nn.Module):
             self.cls = lambda x: x
 
     def forward(self, x):
-
+        
         # data normalization.
         N, C, T, V = x.size()
         x = x.permute(0, 3, 1, 2).contiguous()  # (N, V, C, T)
@@ -250,8 +251,9 @@ class TwoStreamSpatialTemporalGraph(nn.Module):
     def forward(self, inputs):
         out1 = self.pts_stream(inputs[0])
         out2 = self.mot_stream(inputs[1])
-
+  
         concat = torch.cat([out1, out2], dim=-1)
         out = self.fcn(concat)
+       
 
         return torch.sigmoid(out)
