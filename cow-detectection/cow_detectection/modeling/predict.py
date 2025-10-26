@@ -75,6 +75,11 @@ def main(
     option: int = typer.Option(..., help="1: YOLO only, 2: YOLO + HRNet, 3: YOLO + HRNet + TSSTG"),
     image_path: str = typer.Option(..., help="Path to input image"),
     device: str = typer.Option("cpu", help="Device to run inference on: cpu or cuda"),
+    show_skeleton: bool = typer.Option(
+        True,
+        "--show-skeleton/--no-show-skeleton",
+        help="Show HRNet skeleton overlay when using HRNet or TSSTG options",
+    ),
 ):
     import copy
 
@@ -98,10 +103,7 @@ def main(
         dataset = pose_model.cfg.data["test"]["type"]
         dataset_info = pose_model.cfg.data["test"].get("dataset_info", None)
         if dataset_info is None:
-            warnings.warn(
-                "Please set `dataset_info` in the pose config.",
-                DeprecationWarning,
-            )
+            warnings.warn("Please set `dataset_info` in the pose config.", DeprecationWarning)
             dataset_info = None
         else:
             dataset_info = DatasetInfo(dataset_info)
@@ -119,19 +121,24 @@ def main(
             outputs=None,
         )
 
-        vis_img = vis_pose_result(
-            pose_model,
-            frame_orig,
-            pose_results,
-            dataset=dataset,
-            dataset_info=dataset_info,
-            kpt_score_thr=0.2,
-            radius=8,
-            thickness=4,
-            show=False,
-        )
-        # Combine YOLO boxes and pose skeletons onto a new copy
-        frame_vis = vis_img.copy()
+        # visualize only if requested
+        if show_skeleton:
+            vis_img = vis_pose_result(
+                pose_model,
+                frame_orig,
+                pose_results,
+                dataset=dataset,
+                dataset_info=dataset_info,
+                kpt_score_thr=0.2,
+                radius=8,
+                thickness=4,
+                show=False,
+            )
+            frame_vis = vis_img.copy()
+        else:
+            frame_vis = frame_orig.copy()
+
+        # always draw boxes on top
         draw_yolov8_results(frame_vis, detections)
     if option == 3:
         # Step 3: Action recognition
