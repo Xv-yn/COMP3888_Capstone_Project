@@ -44,6 +44,12 @@ PY
 "$IMG_INPUT")"
 fi
 
+# If the resolved path doesn't exist, bail out as requested
+if [[ ! -f "$IMG_ABS" ]]; then
+  echo "no image found"
+  exit 1
+fi
+
 # Auto-select device (prefer CUDA)
 DEVICE="$("$PYBIN" - <<'PY'
 import torch
