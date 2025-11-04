@@ -1,3 +1,26 @@
+"""
+Multi-stage cow analytics: YOLOv8 detection → HRNet pose → TS-STG action recognition.
+
+Usage:
+    # 1) YOLO only (draws boxes)
+    python predict.py --option 1 --image-path /path/to/image.jpg --show-skeleton/--no-show-skeleton
+
+    # 2) YOLO + HRNet pose (boxes + skeletons)
+    python predict.py --option 2 --image-path /path/to/image.jpg --device cuda --show-skeleton/--no-show-skeleton
+
+    # 3) YOLO + HRNet + TS-STG action (boxes + skeletons + action labels)
+    python predict.py --option 3 --image-path /path/to/image.jpg --device cuda --show-skeleton/--no-show-skeleton
+
+Notes:
+    - Restored visualization is written to ../results/vis_res/<image_name>.
+    - Supported inputs: .jpg, .jpeg, .webp, .bmp, .png
+    - --device can be "cpu" or "cuda".
+
+# Optional flag (only for options 2 & 3)
+    --no-show-skeleton     Disable drawing HRNet skeletons on animals.
+
+"""
+
 import argparse
 import os
 
@@ -96,6 +119,8 @@ def main(
     detections = run_inference(yolo_model, frame_orig)
     frame_yolo = frame_orig.copy()
     draw_yolov8_results(frame_yolo, detections)
+
+    frame_vis = frame_yolo
 
     if option >= 2:
         # Step 2: Pose estimation
