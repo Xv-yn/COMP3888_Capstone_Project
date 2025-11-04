@@ -24,8 +24,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import torch
-import typer
 import torch.nn.functional as F
+import typer
 
 from cow_detectection.modeling.base import BaseInference
 from cow_detectection.modeling.stgcn.model import TwoStreamSpatialTemporalGraph
@@ -94,6 +94,7 @@ class TSSTGInference(BaseInference):
 
         pred_index = torch.argmax(output, dim=1).item()
         return self.class_names[pred_index]
+
     def score(self, pts: np.ndarray, image_size: tuple = (1920, 1080)) -> float:
         # build clip + streams
         pts = np.repeat(pts, 60, axis=0)
@@ -107,9 +108,8 @@ class TSSTGInference(BaseInference):
         pts_tensor, motion_tensor = pts_tensor.to(self.device), motion_tensor.to(self.device)
 
         with torch.no_grad():
-            logits = self.model((pts_tensor, motion_tensor))   
-            probs  = F.softmax(logits, dim=1)                  
+            logits = self.model((pts_tensor, motion_tensor))
+            probs = F.softmax(logits, dim=1)
             pred_i = int(torch.argmax(probs, dim=1).item())
             prob = float(probs[0, pred_i].item())
         return prob
-
